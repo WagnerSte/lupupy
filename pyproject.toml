@@ -71,6 +71,12 @@ select = [
     "TRY302",  # Remove exception handler; error is immediately re-raised
     "UP",      # pyupgrade
     "W",       # pycodestyle
+    "ANN001",  # Enforce type annotations for function parameters and return types
+    "ANN206",  # Missing return type annotation for classmethod {name}
+    "ANN201",  # Missing return type annotation for public function {name}
+    "ANN202",  # Missing return type annotation for private function {name}
+
+
 ]
 
 ignore = [

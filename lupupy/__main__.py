@@ -4,12 +4,14 @@ import argparse
 import json
 import logging
 
-import lupupy
+from lupupy import constants as CONST
+from lupupy.lupusec import Lupusec
+from lupupy.devices import LupusecDevice
 
 _LOGGER = logging.getLogger("lupuseccl")
 
 
-def setup_logging(log_level=logging.INFO):
+def setup_logging(log_level: int = logging.INFO) -> None:
     """Set up the logging."""
     logging.basicConfig(level=log_level)
     fmt = "%(asctime)s %(levelname)s (%(threadName)s) " "[%(name)s] %(message)s"
@@ -43,7 +45,7 @@ def setup_logging(log_level=logging.INFO):
     logger.setLevel(log_level)
 
 
-def get_arguments():
+def get_arguments() -> argparse.Namespace:
     """Get parsed arguments."""
     parser = argparse.ArgumentParser("Lupupy: Command Line Utility")
 
@@ -131,53 +133,40 @@ def get_arguments():
     return parser.parse_args()
 
 
-def call():
+def call(args: argparse.Namespace) -> None:
     """Execute command line helper."""
-    args = get_arguments()
-
-    if args.debug:
-        log_level = logging.DEBUG
-    elif args.quiet:
-        log_level = logging.WARN
-    else:
-        log_level = logging.INFO
-
-    setup_logging(log_level)
-
-    lupusec = None
 
     if args.version:
-        _LOGGER.info(lupupy.CONST.VERSION)
+        _LOGGER.info(CONST.VERSION)
         return
 
     if not args.username or not args.password or not args.ip_address:
         raise Exception("Please supply a username, password and ip.")
 
-    def _devicePrint(dev, append=""):
+    def _devicePrint(dev: LupusecDevice, append: str = "") -> None:
         _LOGGER.info("%s%s", dev.desc, append)
 
     try:
-        if args.username and args.password and args.ip_address:
-            lupusec = lupupy.Lupusec(
-                ip_address=args.ip_address,
-                username=args.username,
-                password=args.password,
-            )
+        lupusec = Lupusec(
+            ip_address=args.ip_address,
+            username=args.username,
+            password=args.password,
+        )
 
         if args.arm:
-            if lupusec.get_alarm().set_away():
+            if lupusec.get_alarm().set_away(lupusec.api):
                 _LOGGER.info("Alarm mode changed to armed")
             else:
                 _LOGGER.warning("Failed to change alarm mode to armed")
 
         if args.disarm:
-            if lupusec.get_alarm().set_standby():
+            if lupusec.get_alarm().set_standby(lupusec.api):
                 _LOGGER.info("Alarm mode changed to disarmed")
             else:
                 _LOGGER.warning("Failed to change alarm mode to disarmed")
 
         if args.home:
-            if lupusec.get_alarm().set_home():
+            if lupusec.get_alarm().set_home(lupusec.api):
                 _LOGGER.info("Alarm mode changed to home")
             else:
                 _LOGGER.warning("Failed to change alarm mode to home")
@@ -198,9 +187,19 @@ def call():
         _LOGGER.info("--Finished running--")
 
 
-def main():
+def main() -> None:
     """Execute from command line."""
-    call()
+    args = get_arguments()
+
+    if args.debug:
+        log_level = logging.DEBUG
+    elif args.quiet:
+        log_level = logging.WARN
+    else:
+        log_level = logging.INFO
+
+    setup_logging(log_level)
+    call(args)
 
 
 if __name__ == "__main__":

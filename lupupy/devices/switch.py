@@ -7,7 +7,7 @@ from lupupy.devices import LupusecDevice
 class LupusecSwitch(LupusecDevice):
     """Class to add switch functionality."""
 
-    def switch_on(self):
+    def switch_on(self) -> bool:
         """Turn the switch on."""
         success = self.set_status(CONST.STATUS_ON_INT)
 
@@ -16,7 +16,7 @@ class LupusecSwitch(LupusecDevice):
 
         return success
 
-    def switch_off(self):
+    def switch_off(self) -> bool:
         """Turn the switch off."""
         success = self.set_status(CONST.STATUS_OFF_INT)
 
@@ -26,7 +26,7 @@ class LupusecSwitch(LupusecDevice):
         return success
 
     @property
-    def is_on(self):
+    def is_on(self) -> bool:
         """Get switch state.
 
         Assume switch is on.
@@ -34,6 +34,6 @@ class LupusecSwitch(LupusecDevice):
         return self.status not in (CONST.STATUS_OFF, CONST.STATUS_OFFLINE)
 
     @property
-    def is_dimmable(self):
+    def is_dimmable(self) -> bool:
         """Device dimmable."""
         return False

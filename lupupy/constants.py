@@ -15,14 +15,14 @@ PROJECT_LONG_DESCRIPTION = (
 )
 PROJECT_AUTHOR = "Majuss"
 
-MODE_AWAY = "Arm"
+MODE_UNKNOWN = "Unknown"
+MODE_ARMED = "Arm"
 MODE_HOME = "Home"
 MODE_DISARMED = "Disarm"
 MODE_ALARM_TRIGGERED = "Einbruch"
 MODE_ALARM_TRIGGERED_XT2 = "3"
-ALL_MODES = [MODE_DISARMED, MODE_HOME, MODE_AWAY]
-MODE_TRANSLATION_XT1 = {"Disarm": 2, "Home": 1, "Arm": 0}
-MODE_TRANSLATION_XT2 = {"Disarm": 0, "Arm": 1, "Home": 2}
+ALL_MODES = [MODE_DISARMED, MODE_HOME, MODE_ARMED]
+
 XT2_MODES_TO_TEXT = {
     "{AREA_MODE_0}": "Disarm",
     "{AREA_MODE_1}": "Arm",
@@ -40,7 +40,7 @@ MODE_TRANSLATION_GENERIC = {
     "Home": "armed_home",
     "Arm": "armed_away",
 }
-DEFAULT_MODE = MODE_AWAY
+DEFAULT_MODE = MODE_ARMED
 
 HISTORY_REQUEST_XT1 = "historyGet"
 HISTORY_REQUEST_XT2 = "recordListGet"

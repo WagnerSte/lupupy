@@ -1,12 +1,13 @@
 """Init file for devices directory."""
 
 import lupupy.constants as CONST
+from lupupy.lupusec import LupusecApi
 
 
 class LupusecDevice:
     """Class to represent each Lupusec device."""
 
-    def __init__(self, json_obj, lupusec):
+    def __init__(self, json_obj: dict):
         """Set up Lupusec device."""
         self._json_state = json_obj
         self._device_id = json_obj.get("device_id")
@@ -19,21 +20,20 @@ class LupusecDevice:
             self._generic_type = "generic_type_unknown"
 
         self._status = json_obj.get("status")
-        self._lupusec = lupusec
 
         if not self._name:
             self._name = self._generic_type + " " + self.device_id
 
-    def get_value(self, name):
+    def get_value(self, name: str) -> str:
         """Get a value from the json object."""
 
         return self._json_state.get(name)
 
-    def refresh(self):
+    def refresh(self, api: LupusecApi) -> dict:
         """Refresh a device."""
         # new_device = {}
         if self.type in CONST.BINARY_SENSOR_TYPES:
-            response = self._lupusec.get_sensors()
+            response = api.get_sensors()
             for device in response:
                 if device["device_id"] == self._device_id:
                     self.update(device)
@@ -41,22 +41,22 @@ class LupusecDevice:
             return device
 
         elif self.type == CONST.ALARM_TYPE:
-            response = self._lupusec.get_panel()
+            response = api.get_panel()
             self.update(response)
             return response
 
         elif self.type == CONST.TYPE_POWER_SWITCH:
-            response = self._lupusec.get_power_switches()
+            response = api.get_power_switches()
             for pss in response:
                 if pss["device_id"] == self._device_id:
                     self.update(pss)
             return pss
 
-    def set_status(self, status):
+    def set_status(self, status) -> None:
         """Set status of power switch."""
         # self._apipost
 
-    def update(self, json_state):
+    def update(self, json_state: dict) -> None:
         """Update the json data from a dictionary.
 
         Only updates if it already exists in the device.
@@ -69,59 +69,57 @@ class LupusecDevice:
             )
 
     @property
-    def status(self):
+    def status(self) -> str:
         """Shortcut to get the generic status of a device."""
         return self.get_value("status")
 
     @property
-    def level(self):
+    def level(self) -> str:
         """Shortcut to get the generic level of a device."""
         return self.get_value("level")
 
     @property
-    def battery_low(self):
+    def battery_low(self) -> bool:
         """Is battery level low."""
         return int(self.get_value("faults").get("low_battery", "0")) == 1
 
     @property
-    def no_response(self):
+    def no_response(self) -> bool:
         """Is the device responding."""
         return int(self.get_value("faults").get("no_response", "0")) == 1
 
     @property
-    def out_of_order(self):
+    def out_of_order(self) -> bool:
         """Is the device out of order."""
         return int(self.get_value("faults").get("out_of_order", "0")) == 1
 
     @property
-    def tampered(self):
+    def tampered(self) -> bool:
         """Has the device been tampered with."""
         # 'tempered' - Typo in API?
         return int(self.get_value("faults").get("tempered", "0")) == 1
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Get the name of this device."""
         return self._name
 
     @property
-    def type(self):
+    def type(self) -> str:
         """Get the type of this device."""
         return self._type
 
     @property
-    def generic_type(self):
+    def generic_type(self) -> str:
         """Get the generic type of this device."""
         return self._generic_type
 
     @property
-    def device_id(self):
+    def device_id(self) -> str:
         """Get the device id."""
         return self._device_id
 
     @property
-    def desc(self):
+    def desc(self) -> str:
         """Get a short description of the device."""
-        return "{0} (ID: {1}) - {2} - {3}".format(
-            self.name, self.device_id, self.type, self.status
-        )
+        return f"{self.name} (ID: {self.device_id}) - {self.type} - {self.status}"

@@ -8,7 +8,7 @@ class LupusecBinarySensor(LupusecDevice):
     """Class to represent an on / off, online/offline sensor."""
 
     @property
-    def is_on(self):
+    def is_on(self) -> bool:
         """Get sensor state.
 
         Assume offline or open (worst case).
