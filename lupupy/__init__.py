@@ -1,5 +1,6 @@
 """Init for Lupusec API."""
 
+from enum import Enum
 import json
 import logging
 import pickle
@@ -19,10 +20,19 @@ _LOGGER = logging.getLogger(__name__)
 home = str(Path.home())
 
 
+class LupusecModelType(Enum):
+    """Model type."""
+
+    XT1 = 1
+    XT2_3_4 = 2
+
+
 class Lupusec:
     """Interface to Lupusec Webservices."""
 
-    def __init__(self, username, password, ip_address, get_devices=False):
+    def __init__(
+        self, username: str, password: str, ip_address: str, get_devices: bool = False
+    ):
         """LupsecAPI constructor requires IP and credentials to the Lupusec Webinterface."""
         self.session = requests.Session()
         self.session.auth = (username, password)
@@ -33,7 +43,7 @@ class Lupusec:
         self._devices = None
         self._fail_counter = 0
 
-        if self.model == 1:
+        if self.model == LupusecModelType.XT1:
             resp = self.session.get(self.api_url + CONST.DEVICES_API_XT1)
             if resp.status_code == 200:
                 _LOGGER.debug("XT1 found, setting it up")
@@ -45,7 +55,7 @@ class Lupusec:
             else:
                 _LOGGER.debug("Unknown error while finding out which model is used")
                 return
-        elif self.model == 2:
+        elif self.model == LupusecModelType.XT2_3_4:
             _LOGGER.debug("XT2 or higher found, setting up")
             self.mode_translation = CONST.MODE_TRANSLATION_XT2
             self.api_mode = "mode_a1"
@@ -78,7 +88,7 @@ class Lupusec:
             self.get_devices()
 
     def _request_get(self, action):
-        if self.model == 2:
+        if self.model == LupusecModelType.XT2_3_4:
             ts = time.time()
             if ts - self._token_ts > 60:
                 self._token_ts = ts
@@ -95,7 +105,7 @@ class Lupusec:
         return response
 
     def _request_post(self, action, params={}):
-        if self.model == 2:
+        if self.model == LupusecModelType.XT2_3_4.value:
             ts = time.time()
             if ts - self._token_ts > 60:
                 self._token_ts = ts
@@ -105,14 +115,14 @@ class Lupusec:
             self.api_url + action, data=params, headers=self.headers
         )
 
-    def _get_model(self, ip_address):
+    def _get_model(self, ip_address: str) -> LupusecModelType:
         response = requests.get(f"http://{ip_address}/images/model.gif")
         if response.status_code == 200:
-            return 1
+            return LupusecModelType.XT1
         else:
-            return 2
+            return LupusecModelType.XT2_3_4
 
-    def remove_control_characters(self, s):
+    def remove_control_characters(self, s: str) -> str:
         """Remove control characters from string."""
         return "".join(ch for ch in s if unicodedata.category(ch)[0] != "C")
 
@@ -120,7 +130,7 @@ class Lupusec:
         """Clean up the json response from Lupusec."""
 
         _LOGGER.debug("Input for clean json" + textdata)  # noqa: G003
-        if self.model == 1:
+        if self.model == LupusecModelType.XT1:
             textdata = textdata.replace("\t", "")
             i = textdata.index("\n")
             textdata = textdata[i + 1 : -2]
@@ -172,7 +182,7 @@ class Lupusec:
             response = self.clean_json(response.text)["senrows"]
             sensors = []
             for device in response:
-                if self.model == 1:
+                if self.model == LupusecModelType.XT1:
                     device["status"] = device["cond"]
                 else:
                     if "openClose" in device:
@@ -207,7 +217,7 @@ class Lupusec:
             self._fail_counter += 1
             if (
                 response.status_code == 401
-                and self.model == 2
+                and self.model == LupusecModelType.XT2_3_4
                 and self._fail_counter < 5
             ):
                 response = self._request_get("tokenGet")
@@ -224,13 +234,13 @@ class Lupusec:
         panel["mode"] = panel[self.api_mode]
         panel.pop(self.api_mode)
 
-        if self.model == 2:
+        if self.model == LupusecModelType.XT2_3_4:
             panel["mode"] = CONST.XT2_MODES_TO_TEXT[panel["mode"]]
         panel["device_id"] = CONST.ALARM_DEVICE_ID
         panel["type"] = CONST.ALARM_TYPE
         panel["name"] = CONST.ALARM_NAME
 
-        if self.model == 1:
+        if self.model == LupusecModelType.XT1:
             history = self.get_history_xt1()
             for histrow in history:
                 if histrow not in self._history_cache:
@@ -244,7 +254,7 @@ class Lupusec:
                         self._history_cache,
                         open(home + "/" + CONST.HISTORY_CACHE_NAME, "wb"),
                     )
-        elif self.model == 2:
+        elif self.model == LupusecModelType.XT2_3_4:
             history = self.get_history_xt2()
             for histrow in history:
                 if histrow not in self._history_cache:
@@ -260,20 +270,21 @@ class Lupusec:
                     )
         return panel
 
-    def get_history(self):
+    def get_history(self) -> list:
+        """Get the history from Lupusec."""
         history = []
-        if self.model == 1:
+        if self.model == LupusecModelType.XT1:
             history = self.get_history_xt1()
-        elif self.model == 2:
+        elif self.model == LupusecModelType.XT2_3_4:
             history = self.get_history_xt2()
         return history
 
-    def get_history_xt1(self):
+    def get_history_xt1(self) -> list:
         """Get the history for XT1."""
         response = self._request_get(CONST.HISTORY_REQUEST_XT1)
         return self.clean_json(response.text)[CONST.HISTORY_HEADER]
 
-    def get_history_xt2(self):
+    def get_history_xt2(self) -> list:
         """Get the history for XT2."""
         response = self._request_get(CONST.HISTORY_REQUEST_XT2)
         return self.clean_json(response.text)[CONST.HISTORY_HEADER_XT2]
@@ -322,7 +333,7 @@ class Lupusec:
                 self._devices["0"] = alarmDevice
 
             # Now we will handle the power switches
-            if self.model == 1:
+            if self.model == LupusecModelType.XT1:
                 switches = self.get_power_switches()
                 _LOGGER.debug(
                     "Get active the power switches in get_devices: %s", switches
@@ -342,7 +353,7 @@ class Lupusec:
                             continue
                         self._devices[device.device_id] = device
 
-            elif self.model == 2:
+            elif self.model == LupusecModelType.XT2_3_4:
                 _LOGGER.debug("Power switches for XT2 not implemented")
 
         if generic_type:
@@ -377,11 +388,11 @@ class Lupusec:
 
     def set_mode(self, mode):
         """Set the mode of the alarm."""
-        if self.model == 1:
+        if self.model == LupusecModelType.XT1:
             params = {
                 "mode": mode,
             }
-        elif self.model == 2:
+        elif self.model == LupusecModelType.XT2_3_4:
             params = {"mode": mode, "area": 1}
         r = self._request_post("panelCondPost", params)
         responseJson = self.clean_json(r.text)

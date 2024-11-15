@@ -122,4 +122,6 @@ class LupusecDevice:
     @property
     def desc(self):
         """Get a short description of the device."""
-        return f"{self.name} (ID: {self.device_id}) - {self.type} - {self.status}"
+        return "{0} (ID: {1}) - {2} - {3}".format(
+            self.name, self.device_id, self.type, self.status
+        )
