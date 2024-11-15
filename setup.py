@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """LupuPy setup script."""
 
 from setuptools import find_packages, setup
@@ -7,7 +6,7 @@ PACKAGES = find_packages()
 
 setup(
     name="lupupy",
-    version="0.3.2",
+    version="0.3.3-dev-1",
     description="",
     author="majuss",
     url="http://www.github.com/majuss/lupupy",
