@@ -1,9 +1,9 @@
 """Lupusec alarm device."""
-import json
+
 import logging
 
-from lupupy.devices.switch import LupusecDevice, LupusecSwitch
 import lupupy.constants as CONST
+from lupupy.devices.switch import LupusecDevice, LupusecSwitch
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -1,7 +1,10 @@
-import lupupy
+"""Command line utility for Lupupy."""
+
 import argparse
-import logging
 import json
+import logging
+
+import lupupy
 
 _LOGGER = logging.getLogger("lupuseccl")
 
@@ -10,7 +13,7 @@ def setup_logging(log_level=logging.INFO):
     """Set up the logging."""
     logging.basicConfig(level=log_level)
     fmt = "%(asctime)s %(levelname)s (%(threadName)s) " "[%(name)s] %(message)s"
-    colorfmt = "%(log_color)s{}%(reset)s".format(fmt)
+    colorfmt = f"%(log_color)s{fmt}%(reset)s"
     datefmt = "%Y-%m-%d %H:%M:%S"
 
     # Suppress overly verbose logs from libraries that aren't helpful
@@ -44,30 +47,20 @@ def get_arguments():
     """Get parsed arguments."""
     parser = argparse.ArgumentParser("Lupupy: Command Line Utility")
 
-    parser.add_argument(
-        "-u", "--username",
-        help="Username",
-        required=False
-    )
+    parser.add_argument("-u", "--username", help="Username", required=False)
 
-    parser.add_argument(
-        "-p", "--password",
-        help="Password",
-        required=False
-    )
+    parser.add_argument("-p", "--password", help="Password", required=False)
 
     parser.add_argument(
         "--arm",
         help="Arm alarm to mode",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
-        "-i", "--ip_address",
-        help="IP of the Lupus panel",
-        required=False
+        "-i", "--ip_address", help="IP of the Lupus panel", required=False
     )
 
     parser.add_argument(
@@ -75,7 +68,7 @@ def get_arguments():
         help="Disarm the alarm",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -83,7 +76,7 @@ def get_arguments():
         help="Set to home mode",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -91,7 +84,7 @@ def get_arguments():
         help="Output all devices",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -99,7 +92,7 @@ def get_arguments():
         help="Get the history",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -107,7 +100,7 @@ def get_arguments():
         help="Get the status of the panel",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -115,7 +108,7 @@ def get_arguments():
         help="Enable debug logging",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
@@ -123,15 +116,16 @@ def get_arguments():
         help="Output only warnings and errors",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     parser.add_argument(
-        "--version", "-v",
+        "--version",
+        "-v",
         help="Shows lupupy version",
         required=False,
         default=False,
-        action="store_true"
+        action="store_true",
     )
 
     return parser.parse_args()

@@ -1,7 +1,7 @@
 """Lupusec switch device."""
 
-from lupupy.devices import LupusecDevice
 import lupupy.constants as CONST
+from lupupy.devices import LupusecDevice
 
 
 class LupusecSwitch(LupusecDevice):
@@ -12,7 +12,7 @@ class LupusecSwitch(LupusecDevice):
         success = self.set_status(CONST.STATUS_ON_INT)
 
         if success:
-            self._json_state['status'] = CONST.STATUS_ON
+            self._json_state["status"] = CONST.STATUS_ON
 
         return success
 
@@ -21,14 +21,13 @@ class LupusecSwitch(LupusecDevice):
         success = self.set_status(CONST.STATUS_OFF_INT)
 
         if success:
-            self._json_state['status'] = CONST.STATUS_OFF
+            self._json_state["status"] = CONST.STATUS_OFF
 
         return success
 
     @property
     def is_on(self):
-        """
-        Get switch state.
+        """Get switch state.
 
         Assume switch is on.
         """

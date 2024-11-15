@@ -1,17 +1,19 @@
-import requests
+"""Init for Lupusec API."""
+
+import json
+import logging
 import pickle
 import time
-import logging
-import json
 import unicodedata
-import yaml
 from pathlib import Path
 
-import lupupy.devices.alarm as ALARM
+import requests
+import yaml
+
 import lupupy.constants as CONST
+import lupupy.devices.alarm as ALARM
 from lupupy.devices.binary_sensor import LupusecBinarySensor
 from lupupy.devices.switch import LupusecSwitch
-from lupupy.exceptions import LupusecException
 
 _LOGGER = logging.getLogger(__name__)
 home = str(Path.home())
@@ -21,12 +23,10 @@ class Lupusec:
     """Interface to Lupusec Webservices."""
 
     def __init__(self, username, password, ip_address, get_devices=False):
-        """LupsecAPI constructor requires IP and credentials to the
-        Lupusec Webinterface.
-        """
+        """LupsecAPI constructor requires IP and credentials to the Lupusec Webinterface."""
         self.session = requests.Session()
         self.session.auth = (username, password)
-        self.api_url = "http://{}/action/".format(ip_address)
+        self.api_url = f"http://{ip_address}/action/"
         self.headers = None
         self.model = self._get_model(ip_address)
         self._mode = None
@@ -97,7 +97,7 @@ class Lupusec:
     def _request_post(self, action, params={}):
         if self.model == 2:
             ts = time.time()
-            if  ts - self._token_ts > 60:
+            if ts - self._token_ts > 60:
                 self._token_ts = ts
                 response = self._request_get("tokenGet")
                 self.headers = {"X-Token": json.loads(response.text)["message"]}
@@ -106,21 +106,24 @@ class Lupusec:
         )
 
     def _get_model(self, ip_address):
-        response = requests.get("http://{}/images/model.gif".format(ip_address))
+        response = requests.get(f"http://{ip_address}/images/model.gif")
         if response.status_code == 200:
             return 1
         else:
             return 2
 
     def remove_control_characters(self, s):
+        """Remove control characters from string."""
         return "".join(ch for ch in s if unicodedata.category(ch)[0] != "C")
 
     def clean_json(self, textdata):
-        _LOGGER.debug("Input for clean json" + textdata)
+        """Clean up the json response from Lupusec."""
+
+        _LOGGER.debug("Input for clean json" + textdata)  # noqa: G003
         if self.model == 1:
             textdata = textdata.replace("\t", "")
             i = textdata.index("\n")
-            textdata = textdata[i + 1:-2]
+            textdata = textdata[i + 1 : -2]
             try:
                 textdata = yaml.load(textdata, Loader=yaml.BaseLoader)
             except Exception as e:
@@ -132,10 +135,11 @@ class Lupusec:
             try:
                 return json.loads(self.remove_control_characters(textdata))
             except json.decoder.JSONDecodeError as e:
-                _LOGGER.error("Failed to parse JSON from " + str(textdata))
+                _LOGGER.error("Failed to parse JSON from " + str(textdata))  # noqa: G003
                 _LOGGER.error(e)
 
     def get_power_switches(self):
+        """Get all power switches from Lupusec."""
         stampNow = time.time()
         length = len(self._devices)
         if self._cachePss is None or stampNow - self._cacheStampP > 2.0:
@@ -160,6 +164,7 @@ class Lupusec:
         return self._cachePss
 
     def get_sensors(self):
+        """Get all sensors from Lupusec."""
         stamp_now = time.time()
         if self._cacheSensors is None or stamp_now - self._cacheStampS > 2.0:
             self._cacheStampS = stamp_now
@@ -176,9 +181,16 @@ class Lupusec:
                 device["device_id"] = device[self.api_device_id]
                 device.pop("cond")
                 device.pop(self.api_device_id)
-                if device["status"] == "{WEB_MSG_DC_OPEN}" or device["status"] == CONST.STATUS_OPEN:
+                if (
+                    device["status"] == "{WEB_MSG_DC_OPEN}"
+                    or device["status"] == CONST.STATUS_OPEN
+                ):
                     device["status"] = 1
-                if device["status"] == "{WEB_MSG_DC_CLOSE}" or device["status"] == "0" or device["status"] == "":
+                if (
+                    device["status"] == "{WEB_MSG_DC_CLOSE}"
+                    or device["status"] == "0"
+                    or device["status"] == ""
+                ):
                     device["status"] = "Geschlossen"
                 sensors.append(device)
             self._cacheSensors = sensors
@@ -187,16 +199,27 @@ class Lupusec:
 
     def get_panel(
         self,
-    ):  # we are trimming the json from Lupusec heavily, since its bullcrap
+    ):
+        """Get the panel status from Lupusec."""
+        # we are trimming the json from Lupusec heavily, since its bullcrap
         response = self._request_get("panelCondGet")
         if response.status_code != 200:
             self._fail_counter += 1
-            if response.status_code == 401 and self.model == 2 and self._fail_counter < 5:
+            if (
+                response.status_code == 401
+                and self.model == 2
+                and self._fail_counter < 5
+            ):
                 response = self._request_get("tokenGet")
                 self.headers = {"X-Token": json.loads(response.text)["message"]}
                 self.get_panel()
             else:
-                raise Exception("Unable to get panel " + str(response.status_code) + " Failed tries: " + self._fail_counter)
+                raise Exception(
+                    "Unable to get panel "
+                    + str(response.status_code)
+                    + " Failed tries: "
+                    + self._fail_counter
+                )
         panel = self.clean_json(response.text)["updates"]
         panel["mode"] = panel[self.api_mode]
         panel.pop(self.api_mode)
@@ -211,7 +234,10 @@ class Lupusec:
             history = self.get_history_xt1()
             for histrow in history:
                 if histrow not in self._history_cache:
-                    if (CONST.MODE_ALARM_TRIGGERED in histrow[CONST.HISTORY_ALARM_COLUMN]):
+                    if (
+                        CONST.MODE_ALARM_TRIGGERED
+                        in histrow[CONST.HISTORY_ALARM_COLUMN]
+                    ):
                         panel["mode"] = CONST.STATE_ALARM_TRIGGERED
                     self._history_cache.append(histrow)
                     pickle.dump(
@@ -222,7 +248,10 @@ class Lupusec:
             history = self.get_history_xt2()
             for histrow in history:
                 if histrow not in self._history_cache:
-                    if histrow[CONST.HISTORY_ALARM_COLUMN_XT2] == CONST.MODE_ALARM_TRIGGERED_XT2:
+                    if (
+                        histrow[CONST.HISTORY_ALARM_COLUMN_XT2]
+                        == CONST.MODE_ALARM_TRIGGERED_XT2
+                    ):
                         panel["mode"] = CONST.STATE_ALARM_TRIGGERED
                     self._history_cache.append(histrow)
                     pickle.dump(
@@ -231,14 +260,23 @@ class Lupusec:
                     )
         return panel
 
+    def get_history(self):
+        history = []
+        if self.model == 1:
+            history = self.get_history_xt1()
+        elif self.model == 2:
+            history = self.get_history_xt2()
+        return history
+
     def get_history_xt1(self):
+        """Get the history for XT1."""
         response = self._request_get(CONST.HISTORY_REQUEST_XT1)
         return self.clean_json(response.text)[CONST.HISTORY_HEADER]
-    
+
     def get_history_xt2(self):
+        """Get the history for XT2."""
         response = self._request_get(CONST.HISTORY_REQUEST_XT2)
         return self.clean_json(response.text)[CONST.HISTORY_HEADER_XT2]
-
 
     def refresh(self):
         """Do a full refresh of all devices and automations."""
@@ -252,8 +290,6 @@ class Lupusec:
                 self._devices = {}
 
             responseObject = self.get_sensors()
-            if responseObject and not isinstance(responseObject, (tuple, list)):
-                responseObject = responseObject
 
             for deviceJson in responseObject:
                 # Attempt to reuse an existing device
@@ -340,6 +376,7 @@ class Lupusec:
         return self.get_device(CONST.ALARM_DEVICE_ID, refresh)
 
     def set_mode(self, mode):
+        """Set the mode of the alarm."""
         if self.model == 1:
             params = {
                 "mode": mode,
@@ -358,13 +395,12 @@ def newDevice(deviceJson, lupusec):
     if not type_tag:
         _LOGGER.info("Device has no type")
 
-    if type_tag in CONST.TYPE_OPENING:
-        return LupusecBinarySensor(deviceJson, lupusec)
-    elif type_tag in CONST.TYPE_SENSOR:
-        return LupusecBinarySensor(deviceJson, lupusec)
-    elif type_tag in CONST.TYPE_SIREN:
-        return LupusecBinarySensor(deviceJson, lupusec)
-    elif type_tag in CONST.TYPE_KEYPAD:
+    if (
+        type_tag in CONST.TYPE_OPENING
+        or type_tag in CONST.TYPE_SENSOR
+        or type_tag in CONST.TYPE_SIREN
+        or type_tag in CONST.TYPE_KEYPAD
+    ):
         return LupusecBinarySensor(deviceJson, lupusec)
     elif type_tag in CONST.TYPE_SWITCH:
         return LupusecSwitch(deviceJson, lupusec)

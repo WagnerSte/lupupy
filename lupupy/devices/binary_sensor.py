@@ -1,7 +1,7 @@
 """Lupusec binary sensor device."""
 
-from lupupy.devices import LupusecDevice
 import lupupy.constants as CONST
+from lupupy.devices import LupusecDevice
 
 
 class LupusecBinarySensor(LupusecDevice):
@@ -9,8 +9,7 @@ class LupusecBinarySensor(LupusecDevice):
 
     @property
     def is_on(self):
-        """
-        Get sensor state.
+        """Get sensor state.
 
         Assume offline or open (worst case).
         """
