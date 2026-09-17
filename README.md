@@ -76,6 +76,45 @@ lupupy --status                  # after
 Please mention the panel model and firmware you verified against when opening a
 pull request. `lupupy --devices --debug` prints both.
 
+### The integration test
+
+`tests/test_hardware.py` walks a real panel through its modes and reads the
+state back at every step: disarmed, home, disarmed. It is deselected by
+default and needs two things to run:
+
+```
+cp .env.example .env && chmod 600 .env   # panel, credentials and the opt-in
+pytest -m hardware
+```
+
+`.env.example` carries `LUPUS_HARDWARE_TEST` commented out. Uncommenting it is
+the opt-in, and the marker keeps these tests out of an ordinary `pytest` run
+either way.
+
+The test reads `.env` the same way the command line does, so `--env-file`'s
+counterpart works here as well:
+
+```
+LUPUS_HARDWARE_TEST=1 LUPUS_ENV_FILE=~/my-panel.env pytest -m hardware
+```
+
+It arms a real alarm system, so read this first:
+
+- **The panel must be disarmed** when the test starts, and it is always put
+  back to disarmed afterwards, including when a step fails.
+- **Open contacts abort the run.** The test skips rather than arm a panel
+  that would immediately sound the siren. Bypassed zones are ignored, as the
+  panel ignores them too.
+- **Every mode change is reported** through whatever the panel is configured
+  to notify, including a monitoring service over Contact ID. Those are real
+  events on somebody's screen.
+- **Arming in away mode activates the motion detectors.** Anybody moving in a
+  covered room sets off the siren while the panel is armed, so pick a quiet
+  moment.
+
+The test waits for the panel to reach each mode instead of sleeping for a
+fixed time, because entry and exit delays are configurable per installation.
+
 ---
 
 ### Shortcomings

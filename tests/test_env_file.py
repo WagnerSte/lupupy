@@ -98,3 +98,39 @@ def test_loose_permissions_are_warned_about(env_file, caplog):
     load_env_file()
 
     assert "readable by others" in caplog.text
+
+
+def test_the_hardware_test_reads_the_env_file(env_file):
+    """The integration test resolves credentials the same way the CLI does."""
+    from tests.test_hardware import missing_credentials
+
+    env_file("LUPUS_USER=admin\nLUPUS_PASSWORD=secret\nLUPUS_IP=192.168.1.10\n")
+
+    assert missing_credentials() == []
+
+
+def test_missing_entries_are_named(env_file):
+    from tests.test_hardware import missing_credentials
+
+    env_file("LUPUS_USER=admin\n")
+
+    assert missing_credentials() == ["LUPUS_PASSWORD", "LUPUS_IP"]
+
+
+def test_the_hardware_opt_in_can_live_in_the_env_file(env_file, monkeypatch):
+    """The flag is read after the file, so it need not be retyped."""
+    from tests.test_hardware import hardware_tests_enabled
+
+    monkeypatch.delenv("LUPUS_HARDWARE_TEST", raising=False)
+    env_file("LUPUS_HARDWARE_TEST=1\n")
+
+    assert hardware_tests_enabled() is True
+
+
+def test_without_the_flag_hardware_tests_stay_off(env_file, monkeypatch):
+    from tests.test_hardware import hardware_tests_enabled
+
+    monkeypatch.delenv("LUPUS_HARDWARE_TEST", raising=False)
+    env_file("LUPUS_USER=admin\n")
+
+    assert hardware_tests_enabled() is False
