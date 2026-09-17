@@ -8,10 +8,16 @@ import pytest
 from lupupy.__main__ import call
 
 
+@pytest.fixture(autouse=True)
+def without_an_env_file(tmp_path, monkeypatch):
+    """Keep a real .env in the working directory out of these tests."""
+    monkeypatch.setenv("LUPUS_ENV_FILE", str(tmp_path / "absent.env"))
+
+
 def arguments(**overrides):
     """Build the argument namespace the parser would produce."""
     args = dict(
-        username=None, password=None, ip_address=None, version=False,
+        username=None, password=None, ip_address=None, env_file=None, version=False,
         arm=False, disarm=False, home=False, history=False, status=False,
         devices=False, debug=False, quiet=False,
     )

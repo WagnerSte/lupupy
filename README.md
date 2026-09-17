@@ -25,6 +25,57 @@ lupupy -u USERNAME -p PASSWORD -i IP_ADDRESS --devices
 ```
 This will retrieve a simple list of all devices.
 
+Arguments are visible to every process on the machine, so credentials can also
+be supplied through the environment, or through an env file:
+
+```
+cp .env.example .env
+chmod 600 .env          # it holds your panel password
+$EDITOR .env
+
+lupupy --devices
+```
+
+`.env` is read from the current directory. Use `--env-file PATH` or the
+`LUPUS_ENV_FILE` variable to point somewhere else. Values already set in the
+environment are never overridden by the file, and `.env` is ignored by git.
+
+## Testing against a real panel
+
+There are no integration tests, because every panel is configured differently.
+The command line utility is the way to check a change against real hardware.
+
+Read-only commands, safe to run at any time:
+
+```
+lupupy --status         # the mode the panel is in
+lupupy --devices        # every device the panel reports
+lupupy --history        # the event log
+lupupy --devices --debug  # with the raw requests and responses
+```
+
+Commands that change the state of the alarm system:
+
+```
+lupupy --arm            # arm
+lupupy --home           # arm in home mode
+lupupy --disarm         # disarm
+```
+
+Arming a panel with an open contact sets off the siren, so check `--status` and
+`--devices` first. A typical session while working on the library:
+
+```
+pip install -e .
+lupupy --status                  # before
+lupupy --devices | grep -i door
+lupupy --disarm
+lupupy --status                  # after
+```
+
+Please mention the panel model and firmware you verified against when opening a
+pull request. `lupupy --devices --debug` prints both.
+
 ---
 
 ### Shortcomings

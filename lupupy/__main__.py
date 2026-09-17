@@ -4,6 +4,8 @@ import argparse
 import json
 import logging
 import os
+import pathlib
+import stat
 
 from lupupy import constants as CONST
 from lupupy.lupusec import Lupusec
@@ -46,9 +48,54 @@ def setup_logging(log_level: int = logging.INFO) -> None:
     logger.setLevel(log_level)
 
 
+DEFAULT_ENV_FILE = ".env"
+
+
+def load_env_file(path: str | None = None) -> None:
+    """Read KEY=VALUE lines from an env file into the environment.
+
+    Values already present in the environment are kept, so an explicit
+    export or a command line argument is never overridden by the file.
+    """
+    env_file = pathlib.Path(path or os.environ.get("LUPUS_ENV_FILE", DEFAULT_ENV_FILE))
+    if not env_file.is_file():
+        return
+
+    mode = env_file.stat().st_mode
+    if mode & (stat.S_IRGRP | stat.S_IROTH):
+        _LOGGER.warning(
+            "%s holds credentials but is readable by others, "
+            "consider: chmod 600 %s",
+            env_file,
+            env_file,
+        )
+
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :]
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
 def get_arguments() -> argparse.Namespace:
     """Get parsed arguments."""
     parser = argparse.ArgumentParser("Lupupy: Command Line Utility")
+
+    parser.add_argument(
+        "--env-file",
+        dest="env_file",
+        help="Path to a file with LUPUS_USER, LUPUS_PASSWORD and LUPUS_IP",
+        required=False,
+    )
 
     parser.add_argument("-u", "--username", help="Username", required=False)
 
@@ -140,6 +187,8 @@ def call(args: argparse.Namespace) -> None:
     if args.version:
         _LOGGER.info(CONST.VERSION)
         return
+
+    load_env_file(args.env_file)
 
     # Arguments on the command line are visible to every process on the
     # machine, so the environment is offered as the safer alternative.
