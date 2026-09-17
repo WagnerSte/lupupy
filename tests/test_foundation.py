@@ -105,3 +105,10 @@ def test_a_device_refreshes_against_the_api(system):
 def test_refreshing_through_the_system(system):
     """get_device(refresh=True) used to call refresh() without the api."""
     assert system.get_device("RF:00000001", refresh=True) is not None
+
+
+def test_history_is_delegated_to_the_api(system, monkeypatch):
+    """The command line calls get_history() on the system."""
+    monkeypatch.setattr(system.api, "get_history", lambda: ["row"], raising=False)
+
+    assert system.get_history() == ["row"]

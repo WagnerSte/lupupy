@@ -85,6 +85,10 @@ class Lupusec:
         """Set the mode of the alarm."""
         return self.api.set_mode(mode)
 
+    def get_history(self) -> list:
+        """Get the event history of the panel."""
+        return self.api.get_history()
+
     def _newDevice(self, deviceJson: dict) -> None | LupusecDevice:
         """Create new device object for the given type."""
         type_tag = deviceJson.get("type")

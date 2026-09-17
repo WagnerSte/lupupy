@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import os
 
 from lupupy import constants as CONST
 from lupupy.lupusec import Lupusec
@@ -140,17 +141,28 @@ def call(args: argparse.Namespace) -> None:
         _LOGGER.info(CONST.VERSION)
         return
 
-    if not args.username or not args.password or not args.ip_address:
-        raise Exception("Please supply a username, password and ip.")
+    # Arguments on the command line are visible to every process on the
+    # machine, so the environment is offered as the safer alternative.
+    username = args.username or os.environ.get("LUPUS_USER")
+    password = args.password or os.environ.get("LUPUS_PASSWORD")
+    ip_address = args.ip_address or os.environ.get("LUPUS_IP")
+
+    if not username or not password or not ip_address:
+        # SystemExit gives a readable message and a non-zero exit code,
+        # where a bare exception would print a traceback.
+        raise SystemExit(
+            "Please supply a username, password and ip, either as arguments or "
+            "as LUPUS_USER, LUPUS_PASSWORD and LUPUS_IP in the environment."
+        )
 
     def _devicePrint(dev: LupusecDevice, append: str = "") -> None:
         _LOGGER.info("%s%s", dev.desc, append)
 
     try:
         lupusec = Lupusec(
-            ip_address=args.ip_address,
-            username=args.username,
-            password=args.password,
+            ip_address=ip_address,
+            username=username,
+            password=password,
         )
 
         if args.arm:
