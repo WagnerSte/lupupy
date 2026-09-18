@@ -8,8 +8,6 @@ Published under the MIT license - See LICENSE file for more details.
 
 "Lupusec" is a trademark owned by Lupusec Electronics, see www.lupus-electronics.de for more information. I am in no way affiliated with Lupus Electronics.
 
-This library is based on the work of MisterWil See: https://github.com/MisterWil/abodepy. By "based" I mean that I copied huge portions of code and customized it to work with Lupusec.
-
 ## Installation
 
 You can install the library with pip:
@@ -35,6 +33,9 @@ from lupupy import Lupusec, LupusecModel
 system = Lupusec("USERNAME", "PASSWORD", "IP_ADDRESS", LupusecModel.XT1_PLUS)
 ```
 
+What a panel cannot do, such as switching on the first XT1 or a second area
+where there is none, raises `LupusecNotSupportedException`.
+
 Arguments are visible to every process on the machine, so credentials can also
 be supplied through the environment, or through an env file:
 
@@ -52,8 +53,9 @@ environment are never overridden by the file, and `.env` is ignored by git.
 
 ## Testing against a real panel
 
-There are no integration tests, because every panel is configured differently.
-The command line utility is the way to check a change against real hardware.
+Every panel is configured differently, so besides the unit tests there is only
+one integration test, and it is opt-in (see below). The command line utility is
+the quickest way to check a change against real hardware.
 
 Read-only commands, safe to run at any time:
 
@@ -127,12 +129,58 @@ fixed time, because entry and exit delays are configurable per installation.
 
 ---
 
-### Shortcomings
+## Supported panels and devices
 
-The library currently only works with the XT1 alarm panel and since version 0.1.1 at least with the XT2. Others may work but aren't tested yet. The json responses of other panel will differ and most likely not work. Most of the advanced devices are not yet supported, I don't have the hardware to reverse engineer these devices. If someone need a further integration please open an issue and we will find a way.
+The model is configured, not detected. The XT1 Plus and all later panels share
+one web API, with two areas and three home modes; the first XT1 speaks an API
+of its own, with a single area and one home mode, and what it cannot do raises
+`LupusecNotSupportedException`.
 
-### Currently supported features:
-- Status of binary sensors like door and window sensors
-- Setting the mode of the alarm control panel
-- Get the history for further parsing
-- Status of power switches
+| | XT1 | XT1 Plus | XT2 | XT3 | XT4 |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Home, Arm and Disarm for all Areas | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Telling that an alarm went off | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Door and window contacts | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Motion detectors, recognised with diagnostics | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Motion detectors, movement in the event log¹ | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Smoke detectors | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Water sensors | (🟡) | (🟡) | (🟡) | (🟡) | (🟡) |
+| Sirens, keypads, remote controls, status displays, scene switches | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Battery, tamper, bypass and signal strength of a device | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Sockets: state | (🟡) | ✅ | (🟡) | (🟡) | (🟡) |
+| Sockets: switching | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Roller shutters: up, down, stop | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Roller shutters: moving to a position | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Panel condition: mains power, radio interference, GSM, open contact | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Event log | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Area names | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| What each kind of device can do | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+| Firmware and radio modules | ❌ | ✅ | (🟡) | (🟡) | (🟡) |
+
+✅ tested on a panel &nbsp;·&nbsp; (🟡) supported, not tested &nbsp;·&nbsp; ❌ not supported
+
+¹ A motion detector does not change its state in the device list when it sees
+movement. The panel writes the movement to its event log, where `get_events()`
+reads it, but only for a zone set up to react while disarmed: a detector set up
+as a door chime shows up as "door chime" (code 4) with its zone and name, one
+without such a reaction leaves no trace. While armed, movement raises an alarm
+instead.
+
+The panels of one generation run the same code, so a feature tested on an
+XT1 Plus is expected to work on the later panels as well; it is only marked
+tested once someone has tried it there. Please report what works on yours.
+
+Which calls come from the manufacturer's API document and which were worked out
+by watching the panel is marked in the code, see `lupupy/api`.
+
+## Acknowledgements
+
+Lupupy is strongly inspired by [abodepy](https://github.com/MisterWil/abodepy),
+the library for Abode alarm systems by [MisterWil](https://github.com/MisterWil),
+and started out from it. The idea of a system object holding devices of different kinds, and much of the
+code of the first versions of this library, came from there and was adapted to
+Lupus panels. It has been rewritten for the Lupus web API since, but the shape
+still shows where it came from.
+
+Many thanks to MisterWil for abodepy, and for publishing it openly so that it
+could become the starting point for this library.
