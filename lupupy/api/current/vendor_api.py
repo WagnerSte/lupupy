@@ -123,7 +123,21 @@ class VendorApi(Transport):
         Returns:
             {"result": 1 on success else 0, "message": <text>}.
 
-        Parameters left as None are not sent.
+        Parameters left as None are not sent. The document calls all but id
+        optional, but the panel differs:
+
+        - Without switch the call is refused with
+          {WEB_ERR_PARAM_RANGE} switch 0 2.
+        - Without pd a socket answers result 1 and does not switch. Sent
+          empty, pd means "until switched again".
+        - level does not move a shutter of Zigbee type 512 ("Shade"); it is
+          accepted and the shutter runs to the end of its travel. The web
+          interface sends positions to devices that take them through
+          deviceSwitchDimmerPost instead.
+
+        Observed on an XT1 Plus: switch and level with a type 512 shutter on
+        2026-09-17, pd with a type 9 socket on 2026-09-18. Not verified on
+        other models or firmware versions.
         """
         params: dict[str, Any] = {"id": id}
         for name, value in (("switch", switch), ("level", level), ("pd", pd)):

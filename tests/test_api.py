@@ -147,6 +147,23 @@ def test_the_facade_sends_what_it_is_given_and_returns_what_comes() -> None:
     assert rest.device_list_get() == {"senrows": []}
 
 
+def test_switching_always_sends_pd() -> None:
+    """A socket ignores deviceSwitchPSSPost without pd; empty means for good."""
+    api = make_api()
+
+    assert api.switch("ZS:01", True) is True
+    assert api.switch("ZS:01", False) is True
+    assert api.move_shutter("ZS:19", vendor_api.SHUTTER_STOP) is True
+    assert api.rest.device_switch_pss_post.call_args_list == [
+        call("ZS:01", switch=vendor_api.SWITCH_ON, pd=""),
+        call("ZS:01", switch=vendor_api.SWITCH_OFF, pd=""),
+        call("ZS:19", switch=vendor_api.SHUTTER_STOP, pd=""),
+    ]
+
+    api.rest.device_switch_pss_post.return_value = {"result": 0, "message": "no"}
+    assert api.move_shutter("ZS:19", vendor_api.SHUTTER_UP) is False
+
+
 def test_arming_the_panel() -> None:
     """Through panelCondPost, in the values each generation takes.
 
@@ -236,3 +253,19 @@ def test_connecting_uses_the_configured_model(monkeypatch: pytest.MonkeyPatch) -
     assert connected[LupusecModel.XT3].model is LupusecModel.XT3
     assert rest.method_calls == []
     assert [c[0] for c in legacy.method_calls] == ["sensor_list_get", "login_post"]
+
+
+
+def test_what_the_first_xt1_cannot_do_raises() -> None:
+    """The calling application decides what to do about it, not the library."""
+    xt1 = make_api(legacy=True)
+
+    for name, call_it in {
+        "switch": lambda: xt1.switch("ZS:01", True),
+        "move_shutter": lambda: xt1.move_shutter("ZS:01", vendor_api.SHUTTER_UP),
+    }.items():
+        with pytest.raises(LupusecNotSupportedException):
+            call_it()
+        assert issubclass(LupusecNotSupportedException, LupusecException), name
+
+    assert xt1.rest.method_calls == []

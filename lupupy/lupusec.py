@@ -13,6 +13,7 @@ from lupupy.api import connect
 from lupupy.devices import LupusecDevice
 from lupupy.devices.alarm import LupusecAlarm
 from lupupy.devices.binary_sensor import LupusecBinarySensor
+from lupupy.devices.cover import LupusecCover
 from lupupy.devices.switch import LupusecSwitch
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,6 +125,8 @@ class Lupusec:
             return LupusecBinarySensor(deviceJson)
         elif type_tag in CONST.TYPE_SWITCH:
             return LupusecSwitch(deviceJson)
+        elif type_tag in CONST.TYPE_COVER:
+            return LupusecCover(deviceJson)
         elif type_tag in CONST.TYPE_ACCESSORY:
             return LupusecDevice(deviceJson)
         else:

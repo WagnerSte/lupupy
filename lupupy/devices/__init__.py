@@ -55,9 +55,9 @@ class LupusecDevice:
 
         return None
 
-    def set_status(self, status) -> None:
-        """Set status of power switch."""
-        # self._apipost
+    def set_status(self, on: bool, api: "LupusecApi") -> bool:
+        """Switch the device on or off."""
+        return api.switch(self.device_id, on)
 
     def update(self, json_state: dict) -> None:
         """Update the device from a panel response."""

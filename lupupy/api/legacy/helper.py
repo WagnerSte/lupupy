@@ -103,3 +103,12 @@ class LegacyLupusecApi(LupusecApi):
             LupusecAlarmMode.Armed: undocumented_legacy_api.MODE_ARM,
             LupusecAlarmMode.Home: undocumented_legacy_api.MODE_HOME,
         }.get(mode, -1)
+
+    def switch(self, device_id: str, on: bool) -> bool:
+        """Not supported: how the first XT1 switches is not known."""
+        raise LupusecNotSupportedException("The first XT1 cannot switch devices")
+
+    def move_shutter(self, device_id: str, direction: int) -> bool:
+        """Not supported: the first XT1 has no shutter relays."""
+        raise LupusecNotSupportedException("The first XT1 cannot move shutters")
+

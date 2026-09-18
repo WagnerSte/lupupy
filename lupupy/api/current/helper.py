@@ -30,6 +30,10 @@ _LOGGER = logging.getLogger(__name__)
 home = str(Path.home())
 
 
+# Sent with every switching command: a socket ignores the command without
+# pd, and empty means "until switched again".
+SWITCH_FOR_GOOD = ""
+
 # Refreshing each device asks for the whole list; answering those from a
 # short-lived copy keeps the panel from being asked once per device.
 CACHE_SECONDS = 2.0
@@ -144,6 +148,28 @@ class LupusecApi:
             LupusecAlarmMode.Armed: vendor_api.MODE_ARM,
             LupusecAlarmMode.Home: vendor_api.MODE_HOME1,
         }.get(mode, -1)
+
+    def switch(self, device_id: str, on: bool) -> bool:
+        """Switch a socket or relay, via deviceSwitchPSSPost."""
+        return self._succeeded(
+            self.rest.device_switch_pss_post(
+                device_id,
+                switch=vendor_api.SWITCH_ON if on else vendor_api.SWITCH_OFF,
+                pd=SWITCH_FOR_GOOD,
+            )
+        )
+
+    def move_shutter(self, device_id: str, direction: int) -> bool:
+        """Move a shutter up or down, or stop it, via deviceSwitchPSSPost.
+
+        direction is SHUTTER_UP, SHUTTER_DOWN or SHUTTER_STOP from
+        lupupy.api.current.vendor_api.
+        """
+        return self._succeeded(
+            self.rest.device_switch_pss_post(
+                device_id, switch=direction, pd=SWITCH_FOR_GOOD
+            )
+        )
 
     @staticmethod
     def _succeeded(result: dict) -> bool:

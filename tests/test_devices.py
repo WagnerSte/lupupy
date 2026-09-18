@@ -1,11 +1,13 @@
 """Tests for the devices the panel reports."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import lupupy.constants as CONST
+from lupupy.api.current import vendor_api
 from lupupy.api.data_models import LupusecModelType
 from lupupy.devices import LupusecDevice
 from lupupy.devices.binary_sensor import LupusecBinarySensor
+from lupupy.devices.cover import LupusecCover
 from lupupy.devices.switch import LupusecSwitch
 from lupupy.lupusec import Lupusec
 
@@ -93,7 +95,7 @@ def test_bypass_and_signal_strength() -> None:
 
 
 def test_the_device_factory() -> None:
-    """Motion detectors and senders were dropped as unknown.
+    """Shutters, motion detectors and senders were dropped as unknown.
 
     A Sonos speaker the panel only passes through still is.
     """
@@ -104,6 +106,7 @@ def test_the_device_factory() -> None:
             CONST.TYPE_CONTACT_XT,
             CONST.TYPE_MOTION_XT,
             CONST.TYPE_POWER_SWITCH_1_XT,
+            CONST.TYPE_SHUTTER_XT,
             CONST.TYPE_REMOTE_XT,
             CONST.TYPE_STATUS_DISPLAY_XT,
             CONST.TYPE_SMART_SWITCH_XT,
@@ -115,6 +118,7 @@ def test_the_device_factory() -> None:
         CONST.TYPE_CONTACT_XT: LupusecBinarySensor,
         CONST.TYPE_MOTION_XT: LupusecBinarySensor,
         CONST.TYPE_POWER_SWITCH_1_XT: LupusecSwitch,
+        CONST.TYPE_SHUTTER_XT: LupusecCover,
         CONST.TYPE_REMOTE_XT: LupusecDevice,
         CONST.TYPE_STATUS_DISPLAY_XT: LupusecDevice,
         CONST.TYPE_SMART_SWITCH_XT: LupusecDevice,
@@ -138,6 +142,38 @@ def test_an_unnamed_device_is_named_after_its_type() -> None:
         CONST.TYPE_POWER_SWITCH_2_XT: "Funksteckdose V2 RF:2",
         CONST.TYPE_SMART_SWITCH_XT: "Smart Switch RF:2",
     }
+
+
+def test_switching_a_socket() -> None:
+    """set_status() was an empty stub, so switching never happened."""
+    api = MagicMock()
+    api.switch.return_value = True
+    switch = LupusecSwitch(make_payload(type=CONST.TYPE_POWER_SWITCH_1_XT))
+
+    switch.switch_on(api)
+
+    api.switch.assert_called_once_with("ZS:00000001", True)
+    assert switch.is_on is True
+
+    api.switch.return_value = False
+    switch.switch_off(api)
+
+    assert switch.is_on is True, "a refused command must not change the state"
+
+
+def test_moving_a_shutter() -> None:
+    api = MagicMock()
+    cover = LupusecCover(make_payload(type=CONST.TYPE_SHUTTER_XT, device_id="ZS:19"))
+
+    cover.open_cover(api)
+    cover.close_cover(api)
+    cover.stop_cover(api)
+
+    assert api.move_shutter.call_args_list == [
+        call("ZS:19", vendor_api.SHUTTER_UP),
+        call("ZS:19", vendor_api.SHUTTER_DOWN),
+        call("ZS:19", vendor_api.SHUTTER_STOP),
+    ]
 
 
 def test_refresh_reads_the_endpoint_the_device_belongs_to() -> None:
