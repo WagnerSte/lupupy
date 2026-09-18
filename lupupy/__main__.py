@@ -8,6 +8,7 @@ import pathlib
 import stat
 
 from lupupy import constants as CONST
+from lupupy.api.data_models import LupusecModel
 from lupupy.lupusec import Lupusec
 from lupupy.devices import LupusecDevice
 
@@ -86,6 +87,18 @@ def load_env_file(path: str | None = None) -> None:
         os.environ.setdefault(key, value)
 
 
+def parse_model(name: str) -> LupusecModel:
+    """The model a user typed, such as "XT1 Plus" or "xt1plus"."""
+    wanted = name.replace(" ", "").replace("_", "").lower()
+    for model in LupusecModel:
+        if model.value.replace(" ", "").lower() == wanted:
+            return model
+    raise SystemExit(
+        f"Unknown model {name!r}, expected one of: "
+        + ", ".join(model.value for model in LupusecModel)
+    )
+
+
 def get_arguments() -> argparse.Namespace:
     """Get parsed arguments."""
     parser = argparse.ArgumentParser("Lupupy: Command Line Utility")
@@ -93,13 +106,21 @@ def get_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--env-file",
         dest="env_file",
-        help="Path to a file with LUPUS_USER, LUPUS_PASSWORD and LUPUS_IP",
+        help="Path to a file with LUPUS_USER, LUPUS_PASSWORD, LUPUS_IP and LUPUS_MODEL",
         required=False,
     )
 
     parser.add_argument("-u", "--username", help="Username", required=False)
 
     parser.add_argument("-p", "--password", help="Password", required=False)
+
+    parser.add_argument(
+        "-m",
+        "--model",
+        help="The panel as it says on the device: "
+        + ", ".join(model.value for model in LupusecModel),
+        required=False,
+    )
 
     parser.add_argument(
         "--arm",
@@ -195,14 +216,17 @@ def call(args: argparse.Namespace) -> None:
     username = args.username or os.environ.get("LUPUS_USER")
     password = args.password or os.environ.get("LUPUS_PASSWORD")
     ip_address = args.ip_address or os.environ.get("LUPUS_IP")
+    model_name = args.model or os.environ.get("LUPUS_MODEL")
 
-    if not username or not password or not ip_address:
+    if not username or not password or not ip_address or not model_name:
         # SystemExit gives a readable message and a non-zero exit code,
         # where a bare exception would print a traceback.
         raise SystemExit(
-            "Please supply a username, password and ip, either as arguments or "
-            "as LUPUS_USER, LUPUS_PASSWORD and LUPUS_IP in the environment."
+            "Please supply a username, password, ip and model, either as "
+            "arguments or as LUPUS_USER, LUPUS_PASSWORD, LUPUS_IP and "
+            "LUPUS_MODEL in the environment."
         )
+    model = parse_model(model_name)
 
     def _devicePrint(dev: LupusecDevice, append: str = "") -> None:
         _LOGGER.info("%s%s", dev.desc, append)
@@ -212,6 +236,7 @@ def call(args: argparse.Namespace) -> None:
             ip_address=ip_address,
             username=username,
             password=password,
+            model=model,
         )
 
         if args.arm:

@@ -1,7 +1,7 @@
 """Constants for the Lupusec alarm panel."""
 
 # Used in setup.py
-VERSION = "0.3.3-dev-1"
+VERSION = "1.0.0.dev1"
 PROJECT_PACKAGE_NAME = "lupupy"
 PROJECT_LICENSE = "MIT"
 PROJECT_URL = "http://www.github.com/majuss/lupupy"
@@ -18,6 +18,8 @@ PROJECT_AUTHOR = "Majuss"
 MODE_UNKNOWN = "Unknown"
 MODE_ARMED = "Arm"
 MODE_HOME = "Home"
+MODE_HOME2 = "Home2"
+MODE_HOME3 = "Home3"
 MODE_DISARMED = "Disarm"
 MODE_ALARM_TRIGGERED = "Einbruch"
 MODE_ALARM_TRIGGERED_XT2 = "3"
@@ -27,8 +29,8 @@ XT2_MODES_TO_TEXT = {
     "{AREA_MODE_0}": "Disarm",
     "{AREA_MODE_1}": "Arm",
     "{AREA_MODE_2}": "Home",
-    "{AREA_MODE_3}": "Home",
-    "{AREA_MODE_4}": "Home",
+    "{AREA_MODE_3}": "Home2",
+    "{AREA_MODE_4}": "Home3",
 }
 
 STATE_ALARM_DISARMED = "disarmed"
@@ -38,6 +40,8 @@ STATE_ALARM_TRIGGERED = "alarm_triggered"
 MODE_TRANSLATION_GENERIC = {
     "Disarm": "disarmed",
     "Home": "armed_home",
+    "Home2": "armed_home",
+    "Home3": "armed_home",
     "Arm": "armed_away",
 }
 DEFAULT_MODE = MODE_ARMED
@@ -73,7 +77,11 @@ TYPE_DOOR = "Türkontakt"
 TYPE_SMOKE = "Rauchmelder"
 TYPE_WATER = "Wassermelder"
 TYPE_POWER_SWITCH = "Steckdose"
+TYPE_REMOTE_XT = 2
 TYPE_CONTACT_XT = 4
+TYPE_MOTION_XT = 9
+TYPE_STATUS_DISPLAY_XT = 22
+TYPE_SMART_SWITCH_XT = 81
 TYPE_WATER_XT = 5
 TYPE_SMOKE_XT = 11
 TYPE_POWER_SWITCH_1_XT = 24
@@ -81,10 +89,17 @@ TYPE_POWER_SWITCH_2_XT = 25
 TYPE_KEYPAD_V2 = 37
 TYPE_INDOOR_SIREN_XT = 45
 TYPE_OUTDOOR_SIREN_XT = 46
+TYPE_SHUTTER_XT = 76
 TYPE_SWITCH = [TYPE_POWER_SWITCH, TYPE_POWER_SWITCH_1_XT, TYPE_POWER_SWITCH_2_XT]
 TYPE_OPENING = [TYPE_DOOR, TYPE_WINDOW, TYPE_CONTACT_XT]
 TYPE_SIREN = [TYPE_INDOOR_SIREN_XT, TYPE_OUTDOOR_SIREN_XT]
 TYPE_KEYPAD = [TYPE_KEYPAD_V2]
+TYPE_COVER = [TYPE_SHUTTER_XT]
+TYPE_MOTION = [TYPE_MOTION_XT]
+
+# Senders and indicators. They report no state of their own, only how
+# they are doing, and announce what they did through the event log.
+TYPE_ACCESSORY = [TYPE_REMOTE_XT, TYPE_STATUS_DISPLAY_XT, TYPE_SMART_SWITCH_XT]
 BINARY_SENSOR_TYPES = TYPE_OPENING
 TYPE_SENSOR = [TYPE_SMOKE, TYPE_WATER, TYPE_WATER_XT, TYPE_SMOKE_XT]
 
@@ -94,6 +109,7 @@ HA_DEVICE_CLASS_WINDOW = "window"
 HA_DEVICE_CLASS_DOOR = "door"
 HA_DEVICE_CLASS_MOISTURE = "moisture"
 HA_DEVICE_CLASS_SMOKE = "smoke"
+HA_DEVICE_CLASS_MOTION = "motion"
 
 TYPE_TRANSLATION = {
     TYPE_WINDOW: HA_DEVICE_CLASS_WINDOW,
@@ -101,9 +117,18 @@ TYPE_TRANSLATION = {
     TYPE_CONTACT_XT: HA_DEVICE_CLASS_DOOR,
     TYPE_WATER_XT: HA_DEVICE_CLASS_MOISTURE,
     TYPE_SMOKE_XT: HA_DEVICE_CLASS_SMOKE,
+    TYPE_MOTION_XT: HA_DEVICE_CLASS_MOTION,
+    TYPE_REMOTE_XT: "Fernbedienung",
+    TYPE_STATUS_DISPLAY_XT: "Statusanzeige",
+    TYPE_SMART_SWITCH_XT: "Smart Switch",
+    ALARM_TYPE: "Alarmanlage",
     TYPE_KEYPAD_V2: "Keypad V2",
     TYPE_INDOOR_SIREN_XT: "Innensirene",
     TYPE_OUTDOOR_SIREN_XT: "Außensirene",
+    TYPE_SHUTTER_XT: "Rolladen",
+    TYPE_POWER_SWITCH: "Steckdose",
+    TYPE_POWER_SWITCH_1_XT: "Funksteckdose",
+    TYPE_POWER_SWITCH_2_XT: "Funksteckdose V2",
 }
 DEVICES_API_XT1 = "sensorListGet"
 DEVICES_API_XT2 = "deviceListGet"

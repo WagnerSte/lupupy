@@ -6,7 +6,7 @@ import pytest
 
 import lupupy.constants as CONST
 from lupupy import Lupusec
-from lupupy.api.data_models import LupusecAlarmMode, LupusecModelType
+from lupupy.api.data_models import LupusecAlarmMode, LupusecModel, LupusecModelType
 from lupupy.devices.alarm import LupusecAlarm
 from lupupy.devices.binary_sensor import LupusecBinarySensor
 
@@ -14,7 +14,8 @@ from lupupy.devices.binary_sensor import LupusecBinarySensor
 class FakeApi:
     """A panel that answers from memory instead of over the network."""
 
-    model = LupusecModelType.XT2_3_4
+    model = LupusecModel.XT1_PLUS
+    generation = LupusecModelType.XT1Plus_2_3_4
 
     def __init__(self):
         self.mode_set = None
@@ -41,17 +42,18 @@ class FakeApi:
     def get_power_switches(self):
         return []
 
-    def set_mode(self, mode):
+    def set_mode(self, mode, area=1):
         self.mode_set = mode
-        return {"result": 1}
+        self.area_set = area
+        return True
 
 
 @pytest.fixture(name="system")
 def fixture_system():
     """Build a Lupusec system backed by the fake panel."""
     api = FakeApi()
-    with patch("lupupy.lupusec.LupusecApi", return_value=api):
-        system = Lupusec("user", "password", "panel.lan")
+    with patch("lupupy.lupusec.connect", return_value=api):
+        system = Lupusec("user", "password", "panel.lan", LupusecModel.XT1_PLUS)
     system.api = api
     return system
 
@@ -77,7 +79,8 @@ def test_devices_can_be_filtered_by_type(system):
 
 def test_the_model_is_exposed(system):
     """Home Assistant reads the model straight off the system."""
-    assert system.model is LupusecModelType.XT2_3_4
+    assert system.model is LupusecModel.XT1_PLUS
+    assert system.generation is LupusecModelType.XT1Plus_2_3_4
 
 
 def test_set_mode_is_delegated_to_the_api(system):

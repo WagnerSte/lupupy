@@ -6,7 +6,7 @@ PACKAGES = find_packages()
 
 setup(
     name="lupupy",
-    version="0.3.3-dev-1",
+    version="1.0.0.dev1",
     description="",
     author="majuss",
     url="http://www.github.com/majuss/lupupy",

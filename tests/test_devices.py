@@ -1,0 +1,332 @@
+"""Tests for the devices the panel reports."""
+
+from unittest.mock import MagicMock, call
+
+import lupupy.constants as CONST
+from lupupy.api.current import vendor_api
+from lupupy.api.data_models import LupusecModelType
+from lupupy.devices import LupusecDevice
+from lupupy.devices.binary_sensor import LupusecBinarySensor
+from lupupy.devices.cover import LupusecCover
+from lupupy.devices.switch import LupusecSwitch
+from lupupy.lupusec import Lupusec
+
+
+def make_payload(**overrides) -> dict:
+    """Build a device payload as the panel's device list reports it."""
+    payload = {
+        "device_id": "ZS:00000001",
+        "name": "Smoke Detector",
+        "type": CONST.TYPE_SMOKE_XT,
+        "status": CONST.STATUS_CLOSED,
+        "battery_ok": "1",
+        "tamper_ok": "1",
+        "cond_ok": "1",
+        "bypass": 0,
+        "rssi": "{WEB_MSG_STRONG}\t9",
+        "area": "1",
+        "zone": "3",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def make_device(**overrides) -> LupusecDevice:
+    return LupusecDevice(make_payload(**overrides))
+
+
+def test_the_ok_fields_are_inverted() -> None:
+    """The panel reports '1' while a device is healthy.
+
+    All three were read from a 'faults' object no panel ever sends, so
+    reading any of them raised AttributeError.
+    """
+    healthy = make_device()
+    faulty = make_device(battery_ok="0", tamper_ok="0", cond_ok="0")
+
+    assert (healthy.battery_low, healthy.tampered, healthy.out_of_order) == (
+        False,
+        False,
+        False,
+    )
+    assert (faulty.battery_low, faulty.tampered, faulty.out_of_order) == (
+        True,
+        True,
+        True,
+    )
+
+
+def test_fields_the_panel_leaves_out() -> None:
+    """The alarm panel reports no signal strength and no battery.
+
+    A device that reports no signal strength is not therefore unreachable.
+    """
+    device = make_device()
+    del device._json_state["battery_ok"]
+    del device._json_state["rssi"]
+
+    assert device.battery_low is False
+    assert device.rssi is None
+    assert device.no_response is False
+
+
+def test_bypass_and_signal_strength() -> None:
+    """The signal arrives behind a placeholder, or not at all.
+
+    A sender the panel cannot measure reports N/A, and the panel's own
+    field holds the interference it sees as a bare number. Neither is a
+    device that stopped answering.
+    """
+    assert make_device(bypass=1).bypassed is True
+    assert make_device(bypass=0).bypassed is False
+
+    measured = {
+        raw: (device.rssi, device.no_response)
+        for raw in ("{WEB_MSG_STRONG}\t9", "{WEB_MSG_WEAK}\t0", "{WEB_MSG_NA}", "5")
+        for device in [make_device(rssi=raw)]
+    }
+
+    assert measured == {
+        "{WEB_MSG_STRONG}\t9": (9, False),
+        "{WEB_MSG_WEAK}\t0": (0, True),
+        "{WEB_MSG_NA}": (None, False),
+        "5": (None, False),
+    }
+
+
+def test_the_device_factory() -> None:
+    """Shutters, motion detectors and senders were dropped as unknown.
+
+    A Sonos speaker the panel only passes through still is.
+    """
+    system = object.__new__(Lupusec)
+    built = {
+        type_tag: type(system._newDevice(make_payload(type=type_tag)))
+        for type_tag in (
+            CONST.TYPE_CONTACT_XT,
+            CONST.TYPE_MOTION_XT,
+            CONST.TYPE_POWER_SWITCH_1_XT,
+            CONST.TYPE_SHUTTER_XT,
+            CONST.TYPE_REMOTE_XT,
+            CONST.TYPE_STATUS_DISPLAY_XT,
+            CONST.TYPE_SMART_SWITCH_XT,
+            107,
+        )
+    }
+
+    assert built == {
+        CONST.TYPE_CONTACT_XT: LupusecBinarySensor,
+        CONST.TYPE_MOTION_XT: LupusecBinarySensor,
+        CONST.TYPE_POWER_SWITCH_1_XT: LupusecSwitch,
+        CONST.TYPE_SHUTTER_XT: LupusecCover,
+        CONST.TYPE_REMOTE_XT: LupusecDevice,
+        CONST.TYPE_STATUS_DISPLAY_XT: LupusecDevice,
+        CONST.TYPE_SMART_SWITCH_XT: LupusecDevice,
+        107: type(None),
+    }
+
+
+def test_an_unnamed_device_is_named_after_its_type() -> None:
+    """Sockets, shutters and senders had no entry in the translation."""
+    named = {
+        type_tag: make_device(type=type_tag, name="", device_id="RF:2").name
+        for type_tag in (
+            CONST.TYPE_MOTION_XT,
+            CONST.TYPE_POWER_SWITCH_2_XT,
+            CONST.TYPE_SMART_SWITCH_XT,
+        )
+    }
+
+    assert named == {
+        CONST.TYPE_MOTION_XT: "motion RF:2",
+        CONST.TYPE_POWER_SWITCH_2_XT: "Funksteckdose V2 RF:2",
+        CONST.TYPE_SMART_SWITCH_XT: "Smart Switch RF:2",
+    }
+
+
+def test_switching_a_socket() -> None:
+    """set_status() was an empty stub, so switching never happened."""
+    api = MagicMock()
+    api.switch.return_value = True
+    switch = LupusecSwitch(make_payload(type=CONST.TYPE_POWER_SWITCH_1_XT))
+
+    switch.switch_on(api)
+
+    api.switch.assert_called_once_with("ZS:00000001", True)
+    assert switch.is_on is True
+
+    api.switch.return_value = False
+    switch.switch_off(api)
+
+    assert switch.is_on is True, "a refused command must not change the state"
+
+
+def test_moving_a_shutter() -> None:
+    api = MagicMock()
+    cover = LupusecCover(make_payload(type=CONST.TYPE_SHUTTER_XT, device_id="ZS:19"))
+
+    cover.open_cover(api)
+    cover.close_cover(api)
+    cover.stop_cover(api)
+
+    assert api.move_shutter.call_args_list == [
+        call("ZS:19", vendor_api.SHUTTER_UP),
+        call("ZS:19", vendor_api.SHUTTER_DOWN),
+        call("ZS:19", vendor_api.SHUTTER_STOP),
+    ]
+
+
+def test_refresh_reads_the_endpoint_the_device_belongs_to() -> None:
+    """Everything outside the opening contacts fell through every branch."""
+    api = MagicMock()
+    api.get_sensors.return_value = [make_payload(status="Offen")]
+    api.get_power_switches.return_value = [
+        make_payload(type=CONST.TYPE_POWER_SWITCH, status="on")
+    ]
+    api.get_panel.return_value = make_payload(type=CONST.ALARM_TYPE, status="Armed")
+
+    sensor = make_device()
+    socket = make_device(type=CONST.TYPE_POWER_SWITCH)
+    alarm = make_device(type=CONST.ALARM_TYPE)
+    for device in (sensor, socket, alarm):
+        device.refresh(api)
+
+    assert (sensor.status, socket.status, alarm.status) == ("Offen", "on", "Armed")
+
+
+def test_refresh_keeps_every_field_fresh() -> None:
+    """Only fields that already held a value were merged, and only status.
+
+    A device the panel no longer reports leaves the loop empty, which used
+    to return the last entry of the list or raise UnboundLocalError.
+    """
+    api = MagicMock()
+    device = make_device(type=CONST.TYPE_CONTACT_XT)
+    api.get_sensors.return_value = [
+        make_payload(type=CONST.TYPE_CONTACT_XT, battery_ok="0")
+    ]
+
+    device.refresh(api)
+    assert device.battery_low is True
+
+    api.get_sensors.return_value = []
+    assert device.refresh(api) is None
+
+
+def test_a_device_survives_a_refresh() -> None:
+    """Devices are kept under their id but were looked up by name.
+
+    The lookup therefore never matched and every refresh replaced every
+    device with a new object, so a caller holding one saw it go stale.
+    """
+    system = object.__new__(Lupusec)
+    system._devices = {}
+    system.api = MagicMock()
+    system.api.model = LupusecModelType.XT1Plus_2_3_4
+    system.api.get_sensors.return_value = [make_payload()]
+
+    system._update_devices()
+    first = system._devices["ZS:00000001"]
+
+    system.api.get_sensors.return_value = [make_payload(status="Offen")]
+    system._update_devices()
+
+    assert system._devices["ZS:00000001"] is first
+    assert first.status == "Offen"
+
+
+def test_the_alarm_panel_knows_what_it_is() -> None:
+    """Its type was missing from the translation."""
+    assert make_device(type=CONST.ALARM_TYPE).generic_type == "Alarmanlage"
+
+
+def test_what_a_device_can_do() -> None:
+    """Zigbee devices by profile and device number, the rest by type.
+
+    The shutter that ignored a level is a Shade, which only goes up and
+    down, while a Window Covering Device takes a level.
+    """
+    from lupupy.api.current.capabilities import lookup
+
+    found = {
+        name: (cap.description, sorted(cap.skills)) if cap else None
+        for name, cap in {
+            "socket": lookup("ZS:1", profile=260, device=9),
+            "shade": lookup("ZS:2", profile=260, device=512),
+            "covering": lookup("ZS:3", profile=260, device=514),
+            "motion": lookup("RF:4", device_type=9),
+            "sonos": lookup("SO:5", device_type=107),
+            "unknown type": lookup("RF:6", device_type=999),
+            "zigbee without numbers": lookup("ZS:7", device_type=24),
+        }.items()
+    }
+
+    assert found["socket"] == ("Mains Power Outlet", ["group", "onOff", "pss", "toggle"])
+    assert found["shade"] == ("Shade", ["upDown"])
+    assert found["covering"] == ("Window Covering Device", ["level", "stop", "upDown"])
+    assert found["motion"] == ("PIR Motion detection", ["detectMotion", "triggerAlert"])
+    assert found["sonos"][0] == "Generic SONOS"
+    assert found["unknown type"] is None
+    assert found["zigbee without numbers"] is None
+    assert lookup("ZS:1", profile=260, device=9).actions["level"] == (
+        "deviceSwitchDimmerPost"
+    )
+
+
+def test_the_system_reports_capabilities_by_device_id() -> None:
+    """One deviceGet for all devices, unknown ones left out."""
+    system = object.__new__(Lupusec)
+    system.api = MagicMock()
+    system.api.get_device_details.return_value = [
+        {"sid": "ZS:34ab01", "type": 76, "profile": 260, "device": 512},
+        {"sid": "RF:04d15830", "type": 9},
+        {"sid": "RF:ffffffff", "type": 999},
+    ]
+
+    found = system.get_capabilities()
+
+    assert sorted(found) == ["RF:04d15830", "ZS:34ab01"]
+    assert found["ZS:34ab01"].can("upDown")
+    assert not found["ZS:34ab01"].can("level")
+
+
+def test_what_the_panel_reports_about_itself() -> None:
+    """The panel condition carries power, radio, GSM and an open contact.
+
+    Its battery field holds a placeholder rather than a number, which the
+    battery property used to pass to int().
+    """
+    from lupupy.devices.alarm import LupusecAlarm
+
+    def alarm(**fields: str) -> LupusecAlarm:
+        state = {
+            "device_id": "0",
+            "type": CONST.ALARM_TYPE,
+            "mode": "Disarm",
+            "battery": "{WEB_MSG_NORMAL}",
+            "ac_activation_ok": "1",
+            "interference_ok": "1",
+            "sig_gsm_ok": "1",
+            "dc_ex": "1",
+        }
+        state.update(fields)
+        return LupusecAlarm(state)
+
+    quiet = alarm()
+    troubled = alarm(
+        ac_activation_ok="0", interference_ok="0", sig_gsm_ok="0", dc_ex="0"
+    )
+
+    assert (
+        quiet.battery,
+        quiet.radio_interference,
+        quiet.gsm_signal_lost,
+        quiet.contact_open,
+    ) == (False, False, False, False)
+    assert (
+        troubled.mains_power_lost,
+        troubled.battery,
+        troubled.radio_interference,
+        troubled.gsm_signal_lost,
+        troubled.contact_open,
+    ) == (True, True, True, True, True)

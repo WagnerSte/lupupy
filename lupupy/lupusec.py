@@ -4,11 +4,18 @@ import logging
 from pathlib import Path
 
 import lupupy.constants as CONST
-from lupupy.api.data_models import LupusecAlarmMode, LupusecModelType
-from lupupy.api.lupusec_api import LupusecApi
+from lupupy.api.current import capabilities
+from lupupy.api.data_models import (
+    LupusecAlarmMode,
+    LupusecModel,
+    LupusecModelType,
+    PanelInfo,
+)
+from lupupy.api import connect
 from lupupy.devices import LupusecDevice
 from lupupy.devices.alarm import LupusecAlarm
 from lupupy.devices.binary_sensor import LupusecBinarySensor
+from lupupy.devices.cover import LupusecCover
 from lupupy.devices.switch import LupusecSwitch
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,10 +27,19 @@ class Lupusec:
     """Class to represent the Lupusec alarm system."""
 
     def __init__(
-        self, username: str, password: str, ip_address: str, get_devices: bool = False
+        self,
+        username: str,
+        password: str,
+        ip_address: str,
+        model: LupusecModel,
+        get_devices: bool = False,
     ):
-        """Set up the Lupusec alarm system."""
-        self.api = LupusecApi(username, password, ip_address)
+        """Set up the Lupusec alarm system.
+
+        model is the panel as it says on the device. The library does not
+        find it out by itself.
+        """
+        self.api = connect(username, password, ip_address, model)
         self._devices = None
         self._panel = self.api.get_panel()
 
@@ -77,17 +93,49 @@ class Lupusec:
         return self.get_device(CONST.ALARM_DEVICE_ID, refresh)
 
     @property
-    def model(self) -> LupusecModelType:
-        """Model type of the connected panel."""
+    def model(self) -> LupusecModel:
+        """The panel as configured."""
         return self.api.model
 
-    def set_mode(self, mode: LupusecAlarmMode) -> dict:
-        """Set the mode of the alarm."""
-        return self.api.set_mode(mode)
+    @property
+    def generation(self) -> LupusecModelType:
+        """The web API the configured panel speaks."""
+        return self.api.generation
+
+    def get_panel_info(self) -> PanelInfo:
+        """Firmware, radio modules and MAC address, read from the panel."""
+        return self.api.get_panel_info()
+
+    def set_mode(self, mode: LupusecAlarmMode, area: int = 1) -> bool:
+        """Arm or disarm one area of the panel."""
+        return self.api.set_mode(mode, area)
 
     def get_history(self) -> list:
         """Get the event history of the panel."""
         return self.api.get_history()
+
+    def get_area_names(self) -> dict[int, str]:
+        """The name of each area, read fresh from the panel."""
+        return self.api.get_area_names()
+
+    def get_capabilities(self) -> dict[str, capabilities.Capability]:
+        """What each device can do, by device id, as the web interface sees it.
+
+        One request for all devices. Devices the table does not know are
+        left out. See lupupy.api.current.capabilities for where the table comes from.
+        """
+        found = {}
+        for row in self.api.get_device_details():
+            capability = capabilities.lookup(
+                row["sid"], row.get("type"), row.get("profile"), row.get("device")
+            )
+            if capability is not None:
+                found[row["sid"]] = capability
+        return found
+
+    def get_events(self, after_uid: int | None = None) -> list[dict]:
+        """Get the entries of the panel's event log, oldest first."""
+        return self.api.get_events(after_uid)
 
     def _newDevice(self, deviceJson: dict) -> None | LupusecDevice:
         """Create new device object for the given type."""
@@ -98,6 +146,7 @@ class Lupusec:
 
         if (
             type_tag in CONST.TYPE_OPENING
+            or type_tag in CONST.TYPE_MOTION
             or type_tag in CONST.TYPE_SENSOR
             or type_tag in CONST.TYPE_SIREN
             or type_tag in CONST.TYPE_KEYPAD
@@ -105,6 +154,10 @@ class Lupusec:
             return LupusecBinarySensor(deviceJson)
         elif type_tag in CONST.TYPE_SWITCH:
             return LupusecSwitch(deviceJson)
+        elif type_tag in CONST.TYPE_COVER:
+            return LupusecCover(deviceJson)
+        elif type_tag in CONST.TYPE_ACCESSORY:
+            return LupusecDevice(deviceJson)
         else:
             _LOGGER.info("Device is not known")
         return None
@@ -114,7 +167,7 @@ class Lupusec:
         responseObject = self.api.get_sensors()
 
         for deviceJson in responseObject:
-            device = self._devices.get(deviceJson["name"])
+            device = self._devices.get(deviceJson["device_id"])
             if device:
                 device.update(deviceJson)
             else:
@@ -131,28 +184,25 @@ class Lupusec:
 
         self._panel.update(panelJson)
 
-        alarmDevice = self._devices.get("0")
+        alarmDevice = self._devices.get(CONST.ALARM_DEVICE_ID)
         if alarmDevice:
             alarmDevice.update(panelJson)
         else:
             alarmDevice = LupusecAlarm(panelJson)
-            self._devices["0"] = alarmDevice
+            self._devices[CONST.ALARM_DEVICE_ID] = alarmDevice
 
     def _handle_power_switches(self) -> None:
-        """Handle power switches based on the model type."""
-        if self.api.model == LupusecModelType.XT1:
-            switches = self.api.get_power_switches()
-            _LOGGER.debug("Get active the power switches in get_devices: %s", switches)
+        """Add the power switches the panel lists apart from its devices.
 
-            for deviceJson in switches:
-                device = self._devices.get(deviceJson["name"])
-                if device:
-                    device.update(deviceJson)
-                else:
-                    device = self._newDevice(deviceJson)
-                    if not device:
-                        _LOGGER.info("Device is unknown")
-                        continue
-                    self._devices[device.device_id] = device
-        elif self.api.model == LupusecModelType.XT2_3_4:
-            _LOGGER.debug("Power switches for XT2 not implemented")
+        Only the first XT1 does; on later panels the list is empty.
+        """
+        for deviceJson in self.api.get_power_switches():
+            device = self._devices.get(deviceJson["device_id"])
+            if device:
+                device.update(deviceJson)
+            else:
+                device = self._newDevice(deviceJson)
+                if not device:
+                    _LOGGER.info("Device is unknown")
+                    continue
+                self._devices[device.device_id] = device

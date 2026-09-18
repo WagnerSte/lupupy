@@ -8,7 +8,7 @@ from lupupy.api.data_models import LupusecAlarmMode
 from lupupy.devices.switch import LupusecDevice, LupusecSwitch
 
 if TYPE_CHECKING:
-    from lupupy.api.lupusec_api import LupusecApi
+    from lupupy.api.current.helper import LupusecApi
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,15 +22,12 @@ class LupusecAlarm(LupusecSwitch):
         self._area = area
 
     def set_mode(self, mode: LupusecAlarmMode, api: "LupusecApi") -> bool:
-        """Set Lupusec alarm mode."""
-        _LOGGER.debug("State change called from alarm device")
-        if not mode:
-            _LOGGER.info("No mode supplied")
-        response_object = api.set_mode(mode)
-        if response_object["result"] != 1 and response_object["result"] != "1":
-            _LOGGER.warning("Mode setting unsuccessful")
+        """Set the mode of the area this device stands for."""
+        if not api.set_mode(mode, area=int(self._area)):
+            _LOGGER.warning("The panel did not accept %s", mode)
+            return False
 
-        self._json_state["mode"] = mode
+        self._json_state["mode"] = mode.value
         _LOGGER.info("Mode set to: %s", mode)
         return True
 
@@ -52,11 +49,11 @@ class LupusecAlarm(LupusecSwitch):
         return response_object
 
     def switch_on(self, api: "LupusecApi") -> bool:
-        """Arm Abode to default mode."""
+        """Arm the area."""
         return self.set_mode(LupusecAlarmMode.Armed, api)
 
     def switch_off(self, api: "LupusecApi") -> bool:
-        """Arm Abode to home mode."""
+        """Disarm the area."""
         return self.set_standby(api)
 
     @property
@@ -95,16 +92,43 @@ class LupusecAlarm(LupusecSwitch):
         return LupusecAlarmMode.Unknown
 
     @property
+    def mode_area2(self) -> LupusecAlarmMode:
+        """Mode of the panel's second area."""
+        try:
+            return LupusecAlarmMode(self.get_value("mode_area2"))
+        except ValueError:
+            return LupusecAlarmMode.Unknown
+
+    @property
     def status(self) -> str:
         """To match existing property."""
         return self.mode.value
 
     @property
     def battery(self) -> bool:
-        """Return true if base station on battery backup."""
-        return int(self._json_state.get("battery", "0")) == 1
+        """Whether the panel runs on its backup battery."""
+        return self.mains_power_lost
 
     @property
-    def is_cellular(self) -> bool:
-        """Return true if base station on cellular backup."""
-        return int(self._json_state.get("is_cellular", "0")) == 1
+    def mains_power_lost(self) -> bool:
+        """Whether the panel has lost its mains power supply."""
+        return self._is_faulty("ac_activation_ok")
+
+    @property
+    def radio_interference(self) -> bool:
+        """Whether the panel sees interference on its radio."""
+        return self._is_faulty("interference_ok")
+
+    @property
+    def gsm_signal_lost(self) -> bool:
+        """Whether the panel has lost its GSM signal."""
+        return self._is_faulty("sig_gsm_ok")
+
+    @property
+    def contact_open(self) -> bool:
+        """Whether at least one door or window contact is open.
+
+        The panel reports this inverted, as "0" while a contact is open.
+        """
+        return str(self.get_value("dc_ex")) == "0"
+
