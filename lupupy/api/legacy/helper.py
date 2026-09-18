@@ -102,6 +102,10 @@ class LegacyLupusecApi(LupusecApi):
         """Not supported: the first XT1 has a single area without a name."""
         raise LupusecNotSupportedException("The first XT1 has no area names")
 
+    def get_device_details(self) -> list[dict]:
+        """Not supported: the first XT1 has no deviceGet."""
+        raise LupusecNotSupportedException("The first XT1 has no device details")
+
     def set_mode(self, mode: LupusecAlarmMode, area: int = 1) -> bool:
         """Arm or disarm the single area, via panelCondPost without an area."""
         if area != 1:

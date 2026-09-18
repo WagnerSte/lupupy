@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import lupupy.constants as CONST
+from lupupy.api.current import capabilities
 from lupupy.api.data_models import (
     LupusecAlarmMode,
     LupusecModel,
@@ -116,6 +117,21 @@ class Lupusec:
     def get_area_names(self) -> dict[int, str]:
         """The name of each area, read fresh from the panel."""
         return self.api.get_area_names()
+
+    def get_capabilities(self) -> dict[str, capabilities.Capability]:
+        """What each device can do, by device id, as the web interface sees it.
+
+        One request for all devices. Devices the table does not know are
+        left out. See lupupy.api.current.capabilities for where the table comes from.
+        """
+        found = {}
+        for row in self.api.get_device_details():
+            capability = capabilities.lookup(
+                row["sid"], row.get("type"), row.get("profile"), row.get("device")
+            )
+            if capability is not None:
+                found[row["sid"]] = capability
+        return found
 
     def get_events(self, after_uid: int | None = None) -> list[dict]:
         """Get the entries of the panel's event log, oldest first."""

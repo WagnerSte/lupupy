@@ -240,6 +240,56 @@ def test_the_alarm_panel_knows_what_it_is() -> None:
     assert make_device(type=CONST.ALARM_TYPE).generic_type == "Alarmanlage"
 
 
+def test_what_a_device_can_do() -> None:
+    """Zigbee devices by profile and device number, the rest by type.
+
+    The shutter that ignored a level is a Shade, which only goes up and
+    down, while a Window Covering Device takes a level.
+    """
+    from lupupy.api.current.capabilities import lookup
+
+    found = {
+        name: (cap.description, sorted(cap.skills)) if cap else None
+        for name, cap in {
+            "socket": lookup("ZS:1", profile=260, device=9),
+            "shade": lookup("ZS:2", profile=260, device=512),
+            "covering": lookup("ZS:3", profile=260, device=514),
+            "motion": lookup("RF:4", device_type=9),
+            "sonos": lookup("SO:5", device_type=107),
+            "unknown type": lookup("RF:6", device_type=999),
+            "zigbee without numbers": lookup("ZS:7", device_type=24),
+        }.items()
+    }
+
+    assert found["socket"] == ("Mains Power Outlet", ["group", "onOff", "pss", "toggle"])
+    assert found["shade"] == ("Shade", ["upDown"])
+    assert found["covering"] == ("Window Covering Device", ["level", "stop", "upDown"])
+    assert found["motion"] == ("PIR Motion detection", ["detectMotion", "triggerAlert"])
+    assert found["sonos"][0] == "Generic SONOS"
+    assert found["unknown type"] is None
+    assert found["zigbee without numbers"] is None
+    assert lookup("ZS:1", profile=260, device=9).actions["level"] == (
+        "deviceSwitchDimmerPost"
+    )
+
+
+def test_the_system_reports_capabilities_by_device_id() -> None:
+    """One deviceGet for all devices, unknown ones left out."""
+    system = object.__new__(Lupusec)
+    system.api = MagicMock()
+    system.api.get_device_details.return_value = [
+        {"sid": "ZS:34ab01", "type": 76, "profile": 260, "device": 512},
+        {"sid": "RF:04d15830", "type": 9},
+        {"sid": "RF:ffffffff", "type": 999},
+    ]
+
+    found = system.get_capabilities()
+
+    assert sorted(found) == ["RF:04d15830", "ZS:34ab01"]
+    assert found["ZS:34ab01"].can("upDown")
+    assert not found["ZS:34ab01"].can("level")
+
+
 def test_what_the_panel_reports_about_itself() -> None:
     """The panel condition carries power, radio, GSM and an open contact.
 

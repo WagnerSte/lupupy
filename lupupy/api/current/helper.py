@@ -180,6 +180,10 @@ class LupusecApi:
             names[int(key)] = label[len(prefix) :] if label.startswith(prefix) else label
         return names
 
+    def get_device_details(self) -> list[dict]:
+        """Every device with the details the web interface shows, via deviceGet."""
+        return self.rest.device_get()["senrows"]
+
     def get_history(self) -> list:
         """The raw rows of the event log, via recordListGet."""
         return self.rest.record_list_get()[CONST.HISTORY_HEADER_XT2]

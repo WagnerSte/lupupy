@@ -362,6 +362,7 @@ def test_what_the_first_xt1_cannot_do_raises() -> None:
         "move_shutter": lambda: xt1.move_shutter("ZS:01", vendor_api.SHUTTER_UP),
         "get_events": xt1.get_events,
         "get_area_names": xt1.get_area_names,
+        "get_device_details": xt1.get_device_details,
         "get_panel_info": xt1.get_panel_info,
     }.items():
         with pytest.raises(LupusecNotSupportedException):

@@ -19,6 +19,7 @@ from lupupy.api.current.vendor_api import VendorApi
 from lupupy.api.markers import undocumented
 
 ACTION_WELCOME_GET = "welcomeGet"
+ACTION_DEVICE_GET = "deviceGet"
 ACTION_AREA_LIST_GET = "areaListGet"
 ACTION_RECORD_LIST_GET = "recordListGet"
 
@@ -47,6 +48,18 @@ class UndocumentedApi(VendorApi):
             not have.
         """
         return self._get(ACTION_WELCOME_GET)
+
+    @undocumented("deviceGet, which the web interface reads its device view from")
+    def device_get(self) -> dict:
+        """GET deviceGet, every device with the details the interface shows.
+
+        Returns:
+            {"senrows": [<device>, ...]}, with the fields of deviceListGet
+            and more: onOff and level for switches and shutters, and for
+            Zigbee devices profile, device, cluster, manu and serial, which
+            lupupy.api.current.capabilities looks kinds of device up by.
+        """
+        return self._get(ACTION_DEVICE_GET)
 
     @undocumented("areaListGet, which the web interface fills its area picker from")
     def area_list_get(self) -> dict:
