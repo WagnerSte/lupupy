@@ -16,7 +16,7 @@ import pytest
 
 import lupupy.constants as CONST
 from lupupy import Lupusec
-from lupupy.__main__ import load_env_file
+from lupupy.__main__ import load_env_file, parse_model
 from lupupy.api.data_models import LupusecAlarmMode
 
 SETTLE_TIMEOUT = 90
@@ -67,7 +67,7 @@ def open_contacts(system):
     ]
 
 
-CREDENTIALS = ("LUPUS_USER", "LUPUS_PASSWORD", "LUPUS_IP")
+CREDENTIALS = ("LUPUS_USER", "LUPUS_PASSWORD", "LUPUS_IP", "LUPUS_MODEL")
 ENABLE_FLAG = "LUPUS_HARDWARE_TEST"
 
 
@@ -107,6 +107,7 @@ def fixture_system():
         username=os.environ["LUPUS_USER"],
         password=os.environ["LUPUS_PASSWORD"],
         ip_address=os.environ["LUPUS_IP"],
+        model=parse_model(os.environ["LUPUS_MODEL"]),
     )
 
     starting_mode = system.get_alarm(refresh=True).mode

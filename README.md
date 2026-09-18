@@ -21,9 +21,19 @@ pip install Lupupy
 
 You can integrate the library into your own project, or simply use it in the command line.
 ```
-lupupy -u USERNAME -p PASSWORD -i IP_ADDRESS --devices
+lupupy -u USERNAME -p PASSWORD -i IP_ADDRESS -m "XT1 Plus" --devices
 ```
 This will retrieve a simple list of all devices.
+
+The model is the panel as it says on the device: XT1, XT1 Plus, XT2, XT2 Plus,
+XT3 or XT4. The library does not find it out by itself, since the first XT1
+speaks a different web API from all later panels. In code:
+
+```python
+from lupupy import Lupusec, LupusecModel
+
+system = Lupusec("USERNAME", "PASSWORD", "IP_ADDRESS", LupusecModel.XT1_PLUS)
+```
 
 Arguments are visible to every process on the machine, so credentials can also
 be supplied through the environment, or through an env file:

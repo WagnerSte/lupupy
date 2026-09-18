@@ -2,19 +2,20 @@
 
 
 class LupusecException(Exception):
-    """Class to throw general lupusec exception."""
+    """Raised when the panel cannot be reached or answers unexpectedly."""
 
-    def __init__(self, error, details=None):
+    def __init__(self, message: str, details: str | None = None):
         """Initialize LupusecException."""
-        # Call the base class constructor with the parameters it needs
-        super().__init__(error[1])
+        super().__init__(message)
 
-        self.errcode = error[0]
-        self.message = error[1]
+        self.message = message
         self.details = details
 
 
-# class LupusecAuthenticationException(LupusecException):
-#     """Class to throw authentication exception."""
+class LupusecNotSupportedException(LupusecException):
+    """Raised when the connected panel cannot do what was asked.
 
-#     pass
+    The first XT1 knows neither switching nor shutters, area names, device
+    details or an event log, and no panel takes a mode or area it does not
+    have. The calling application decides what to do about it.
+    """

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import lupupy.constants as CONST
 
 if TYPE_CHECKING:
-    from lupupy.api.lupusec_api import LupusecApi
+    from lupupy.api.current.helper import LupusecApi
 
 
 class LupusecDevice:

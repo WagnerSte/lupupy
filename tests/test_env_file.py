@@ -23,7 +23,7 @@ def fixture_env_file(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch):
-    for name in ("LUPUS_USER", "LUPUS_PASSWORD", "LUPUS_IP"):
+    for name in ("LUPUS_USER", "LUPUS_PASSWORD", "LUPUS_IP", "LUPUS_MODEL"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -104,7 +104,10 @@ def test_the_hardware_test_reads_the_env_file(env_file):
     """The integration test resolves credentials the same way the CLI does."""
     from tests.test_hardware import missing_credentials
 
-    env_file("LUPUS_USER=admin\nLUPUS_PASSWORD=secret\nLUPUS_IP=192.168.1.10\n")
+    env_file(
+        "LUPUS_USER=admin\nLUPUS_PASSWORD=secret\nLUPUS_IP=192.168.1.10\n"
+        "LUPUS_MODEL=XT1 Plus\n"
+    )
 
     assert missing_credentials() == []
 
@@ -114,7 +117,7 @@ def test_missing_entries_are_named(env_file):
 
     env_file("LUPUS_USER=admin\n")
 
-    assert missing_credentials() == ["LUPUS_PASSWORD", "LUPUS_IP"]
+    assert missing_credentials() == ["LUPUS_PASSWORD", "LUPUS_IP", "LUPUS_MODEL"]
 
 
 def test_the_hardware_opt_in_can_live_in_the_env_file(env_file, monkeypatch):

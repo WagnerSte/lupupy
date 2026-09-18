@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import lupupy.constants as CONST
+from lupupy.api.data_models import LupusecModelType
 from lupupy.devices import LupusecDevice
 from lupupy.devices.binary_sensor import LupusecBinarySensor
 from lupupy.devices.switch import LupusecSwitch
@@ -185,6 +186,7 @@ def test_a_device_survives_a_refresh() -> None:
     system = object.__new__(Lupusec)
     system._devices = {}
     system.api = MagicMock()
+    system.api.model = LupusecModelType.XT1Plus_2_3_4
     system.api.get_sensors.return_value = [make_payload()]
 
     system._update_devices()

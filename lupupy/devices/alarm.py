@@ -8,7 +8,7 @@ from lupupy.api.data_models import LupusecAlarmMode
 from lupupy.devices.switch import LupusecDevice, LupusecSwitch
 
 if TYPE_CHECKING:
-    from lupupy.api.lupusec_api import LupusecApi
+    from lupupy.api.current.helper import LupusecApi
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,15 +22,12 @@ class LupusecAlarm(LupusecSwitch):
         self._area = area
 
     def set_mode(self, mode: LupusecAlarmMode, api: "LupusecApi") -> bool:
-        """Set Lupusec alarm mode."""
-        _LOGGER.debug("State change called from alarm device")
-        if not mode:
-            _LOGGER.info("No mode supplied")
-        response_object = api.set_mode(mode)
-        if response_object["result"] != 1 and response_object["result"] != "1":
-            _LOGGER.warning("Mode setting unsuccessful")
+        """Set the mode of the panel."""
+        if not api.set_mode(mode):
+            _LOGGER.warning("The panel did not accept %s", mode)
+            return False
 
-        self._json_state["mode"] = mode
+        self._json_state["mode"] = mode.value
         _LOGGER.info("Mode set to: %s", mode)
         return True
 
