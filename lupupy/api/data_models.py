@@ -1,5 +1,6 @@
 """Data models for the Lupusec API."""
 
+from dataclasses import dataclass
 from enum import Enum
 
 import lupupy.constants as CONST
@@ -46,5 +47,18 @@ class LupusecAlarmMode(Enum):
     Armed = CONST.MODE_ARMED
     Disarmed = CONST.MODE_DISARMED
     Home = CONST.MODE_HOME
+    Home2 = CONST.MODE_HOME2
+    Home3 = CONST.MODE_HOME3
     AlarmTriggered = CONST.STATE_ALARM_TRIGGERED
 
+
+@dataclass(frozen=True)
+class PanelInfo:
+    """What runs on the panel, as welcomeGet reports it."""
+
+    firmware: str
+    version: str
+    radio: str
+    zigbee: str
+    gsm: str
+    mac: str

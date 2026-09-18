@@ -13,7 +13,9 @@ builds on this one and overrides only what differs.
 
 import logging
 import pickle
+import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import lupupy.constants as CONST
@@ -22,6 +24,7 @@ from lupupy.api.data_models import (
     LupusecAlarmMode,
     LupusecModel,
     LupusecModelType,
+    PanelInfo,
 )
 from lupupy.api.current.undocumented_api import UndocumentedApi
 from lupupy.exceptions import LupusecNotSupportedException
@@ -29,6 +32,8 @@ from lupupy.exceptions import LupusecNotSupportedException
 _LOGGER = logging.getLogger(__name__)
 home = str(Path.home())
 
+EVENT_PATTERN = re.compile(r"\{ALARM_HISTORY_(\d+)\}(.*)")
+DEVICE_TYPE_PATTERN = re.compile(r"\{D_TYPE_(\d+)\}")
 
 # Sent with every switching command: a socket ignores the command without
 # pd, and empty means "until switched again".
@@ -37,6 +42,24 @@ SWITCH_FOR_GOOD = ""
 # Refreshing each device asks for the whole list; answering those from a
 # short-lived copy keeps the panel from being asked once per device.
 CACHE_SECONDS = 2.0
+
+
+def panel_info(updates: dict) -> PanelInfo:
+    """What welcomeGet says runs on the panel.
+
+    The first word of version names the hardware, the second the firmware.
+    """
+    version = updates.get("version", "").split()
+    return PanelInfo(
+        firmware=version[1] if len(version) > 1 else "",
+        version=updates.get("version", "").strip(),
+        radio=updates.get("rf_ver", ""),
+        zigbee=updates.get("zbs_ver", "") or updates.get("zb_ver", ""),
+        gsm=updates.get("gsm_ver", ""),
+        mac=updates.get("mac", ""),
+    )
+
+
 
 
 def _load_history_cache() -> list:
@@ -67,6 +90,10 @@ class LupusecApi:
             value = fetch()
             self._cache[key] = (time.time(), value)
         return value
+
+    def get_panel_info(self) -> PanelInfo:
+        """Firmware, radio modules and MAC address, via welcomeGet."""
+        return panel_info(self.rest.welcome_get()["updates"])
 
     def get_power_switches(self) -> list[dict]:
         """Nothing: switches and shutters are part of the device list here."""
@@ -102,6 +129,12 @@ class LupusecApi:
 
         Uses panelCondGet, and the event log to tell whether an alarm went
         off since it was last read: an alarm is a new row of type "3".
+
+        Tried on an XT1 Plus on 2026-09-18 with a motion detector in an
+        armed area 2: the burglary alarm arrived as a type "3" row, code 5,
+        with the zone and name of the detector, and was reported here in the
+        same poll. alarm_ex in the panel condition did not change. Not
+        verified on other models or firmware versions.
         """
         panel = self.rest.panel_cond_get()["updates"]
         self._read_modes(panel)
@@ -123,23 +156,94 @@ class LupusecApi:
 
     @staticmethod
     def _read_modes(panel: dict) -> None:
-        """Turn the placeholder of the mode into a mode name."""
+        """Turn the placeholders of both areas into mode names."""
         panel["mode"] = CONST.XT2_MODES_TO_TEXT[panel.pop("mode_a1")]
+        if "mode_a2" in panel:
+            panel["mode_area2"] = CONST.XT2_MODES_TO_TEXT.get(
+                panel.pop("mode_a2"), CONST.MODE_UNKNOWN
+            )
 
     @staticmethod
     def _alarm_went_off(row: dict) -> bool:
         return row[CONST.HISTORY_ALARM_COLUMN_XT2] == CONST.MODE_ALARM_TRIGGERED_XT2
 
+    def get_area_names(self) -> dict[int, str]:
+        """The name of each area, as set in the panel's configuration.
+
+        Uses areaListGet, on every call, since the names can be changed in
+        the web interface at any time. areaListGet puts the area number in
+        front of each name for display; only that prefix is taken off.
+        """
+        names = {}
+        for key, label in self.rest.area_list_get()["arearows"].items():
+            prefix = f"{key} "
+            names[int(key)] = label[len(prefix) :] if label.startswith(prefix) else label
+        return names
+
     def get_history(self) -> list:
         """The raw rows of the event log, via recordListGet."""
         return self.rest.record_list_get()[CONST.HISTORY_HEADER_XT2]
 
-    def set_mode(self, mode: LupusecAlarmMode) -> bool:
-        """Arm or disarm the panel, via panelCondPost."""
+    def get_events(self, after_uid: int | None = None) -> list[dict]:
+        """The entries of the panel's event log, oldest first, via recordListGet.
+
+        The panel only returns its most recent entries. Pass the uid of the
+        last event already processed to receive only what happened since.
+        """
+        events = sorted(
+            (self._parse_event(row) for row in self.get_history()),
+            key=lambda event: event["uid"],
+        )
+        if after_uid is None:
+            return events
+
+        new_events = [event for event in events if event["uid"] > after_uid]
+        if (
+            new_events
+            and len(new_events) == len(events)
+            and events[0]["uid"] > after_uid + 1
+        ):
+            _LOGGER.warning(
+                "The event log no longer reaches back to uid %s, "
+                "events in between were missed",
+                after_uid,
+            )
+        return new_events
+
+    @staticmethod
+    def _parse_event(row: dict) -> dict:
+        """Turn a row of recordListGet into a plain event."""
+        event = EVENT_PATTERN.match(row.get("event") or "")
+        device_type = DEVICE_TYPE_PATTERN.match(row.get("type_f") or "")
+        return {
+            "uid": int(row["uid"]),
+            "time": datetime.fromtimestamp(int(row["time"]), tz=timezone.utc),
+            "area": row.get("area"),
+            "zone": int(row["zone"]) if row.get("zone") else None,
+            "device_id": row.get("sid") or None,
+            "device_type": int(device_type.group(1)) if device_type else None,
+            "name": (row.get("name") or "").strip(),
+            "category": int(row["type"]) if row.get("type") else None,
+            "code": int(event.group(1)) if event else None,
+            "value": event.group(2) if event else row.get("event"),
+            "user": row.get("user") or None,
+        }
+
+    def set_mode(self, mode: LupusecAlarmMode, area: int = 1) -> bool:
+        """Arm or disarm one area of the panel, via panelCondPost.
+
+        Tried on an XT1 Plus on 2026-09-18: area 2 went through Home, Home2,
+        Home3, Arm and Disarm, first empty and then holding a motion
+        detector. Each mode read back as set, area 1 stayed as it was, and
+        the event log recorded the mode changes and nothing else. Not
+        verified on other models or firmware versions.
+        """
         mode_value = self.get_alarm_mode_value(mode)
         if mode_value == -1:
             raise LupusecNotSupportedException(f"{mode} cannot be set on this panel")
-        return self._succeeded(self.rest.panel_cond_post(1, mode_value))
+        if area not in vendor_api.AREAS:
+            raise LupusecNotSupportedException(f"The panel has no area {area}")
+        return self._succeeded(self.rest.panel_cond_post(area, mode_value))
 
     def get_alarm_mode_value(self, mode: LupusecAlarmMode) -> int:
         """The value panelCondPost takes for a mode, or -1."""
@@ -147,6 +251,8 @@ class LupusecApi:
             LupusecAlarmMode.Disarmed: vendor_api.MODE_DISARM,
             LupusecAlarmMode.Armed: vendor_api.MODE_ARM,
             LupusecAlarmMode.Home: vendor_api.MODE_HOME1,
+            LupusecAlarmMode.Home2: vendor_api.MODE_HOME2,
+            LupusecAlarmMode.Home3: vendor_api.MODE_HOME3,
         }.get(mode, -1)
 
     def switch(self, device_id: str, on: bool) -> bool:

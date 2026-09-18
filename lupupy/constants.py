@@ -18,6 +18,8 @@ PROJECT_AUTHOR = "Majuss"
 MODE_UNKNOWN = "Unknown"
 MODE_ARMED = "Arm"
 MODE_HOME = "Home"
+MODE_HOME2 = "Home2"
+MODE_HOME3 = "Home3"
 MODE_DISARMED = "Disarm"
 MODE_ALARM_TRIGGERED = "Einbruch"
 MODE_ALARM_TRIGGERED_XT2 = "3"
@@ -27,8 +29,8 @@ XT2_MODES_TO_TEXT = {
     "{AREA_MODE_0}": "Disarm",
     "{AREA_MODE_1}": "Arm",
     "{AREA_MODE_2}": "Home",
-    "{AREA_MODE_3}": "Home",
-    "{AREA_MODE_4}": "Home",
+    "{AREA_MODE_3}": "Home2",
+    "{AREA_MODE_4}": "Home3",
 }
 
 STATE_ALARM_DISARMED = "disarmed"
@@ -38,6 +40,8 @@ STATE_ALARM_TRIGGERED = "alarm_triggered"
 MODE_TRANSLATION_GENERIC = {
     "Disarm": "disarmed",
     "Home": "armed_home",
+    "Home2": "armed_home",
+    "Home3": "armed_home",
     "Arm": "armed_away",
 }
 DEFAULT_MODE = MODE_ARMED

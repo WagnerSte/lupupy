@@ -18,6 +18,8 @@ import time
 from lupupy.api.current.vendor_api import VendorApi
 from lupupy.api.markers import undocumented
 
+ACTION_WELCOME_GET = "welcomeGet"
+ACTION_AREA_LIST_GET = "areaListGet"
 ACTION_RECORD_LIST_GET = "recordListGet"
 
 TOKEN_LIFETIME = 60
@@ -31,6 +33,31 @@ TOKEN_LIFETIME = 60
 )
 class UndocumentedApi(VendorApi):
     """One method per REST action the panel answers beyond the document."""
+
+    @undocumented("welcomeGet, which the web interface asks first when it loads")
+    def welcome_get(self) -> dict:
+        """GET welcomeGet, the firmware and hardware of the panel.
+
+        Returns:
+            {"updates": {"version": "HPGW-G1 0.0.3.7J HPGW-L2-XA35H",
+            "em_ver", "rf_ver", "rf_ext_cap", "rf_ext_ver", "zb_ver",
+            "zbs_ver", "zw_ver", "gsm_ver", "publicip", "ip", "mac"}}. The
+            first word of version names the hardware, the second the
+            firmware. The *_ver fields are empty for modules the panel does
+            not have.
+        """
+        return self._get(ACTION_WELCOME_GET)
+
+    @undocumented("areaListGet, which the web interface fills its area picker from")
+    def area_list_get(self) -> dict:
+        """GET areaListGet, the names of the areas.
+
+        Returns:
+            {"arearows": {"1": "1 Haus", "2": "2 Keller"}}. The panel puts
+            the area number in front of each name for display; the name as
+            configured is "Haus".
+        """
+        return self._get(ACTION_AREA_LIST_GET)
 
     @undocumented("recordListGet, the event log")
     def record_list_get(self) -> dict:

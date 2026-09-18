@@ -1,7 +1,9 @@
 """Tests for the REST facade and the helpers built on it."""
 
 import json
+import logging
 import time
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -143,8 +145,8 @@ def test_the_facade_sends_what_it_is_given_and_returns_what_comes() -> None:
         ),
     ]
 
-    rest.session.get.return_value = answer('{"senrows": []}')
-    assert rest.device_list_get() == {"senrows": []}
+    rest.session.get.return_value = answer('{"arearows": {"1": "1 Haus"}}')
+    assert rest.area_list_get() == {"arearows": {"1": "1 Haus"}}
 
 
 def test_switching_always_sends_pd() -> None:
@@ -164,22 +166,32 @@ def test_switching_always_sends_pd() -> None:
     assert api.move_shutter("ZS:19", vendor_api.SHUTTER_UP) is False
 
 
-def test_arming_the_panel() -> None:
-    """Through panelCondPost, in the values each generation takes.
+def test_arming_an_area() -> None:
+    """Areas 1 and 2 and all three home modes, through panelCondPost.
 
-    A mode the panel does not have raises before anything is sent.
+    The first XT1 knows a single area, one home mode and numbers its modes
+    differently. A mode or area the panel does not have raises before
+    anything is sent.
     """
     api = make_api()
-    assert api.set_mode(LupusecAlarmMode.Home) is True
-    api.rest.panel_cond_post.assert_called_once_with(1, vendor_api.MODE_HOME1)
-    with pytest.raises(LupusecNotSupportedException):
-        api.set_mode(LupusecAlarmMode.AlarmTriggered)
+
+    assert api.set_mode(LupusecAlarmMode.Home2, area=2) is True
+    assert api.set_mode(LupusecAlarmMode.Home3) is True
+    assert api.rest.panel_cond_post.call_args_list == [
+        call(2, vendor_api.MODE_HOME2),
+        call(1, vendor_api.MODE_HOME3),
+    ]
+    for mode, area in ((LupusecAlarmMode.AlarmTriggered, 1), (LupusecAlarmMode.Home, 3)):
+        with pytest.raises(LupusecNotSupportedException):
+            api.set_mode(mode, area=area)
+    assert api.rest.panel_cond_post.call_count == 2
 
     xt1 = make_api(legacy=True)
+    for mode, area in ((LupusecAlarmMode.Home, 2), (LupusecAlarmMode.Home2, 1)):
+        with pytest.raises(LupusecNotSupportedException):
+            xt1.set_mode(mode, area=area)
     assert xt1.set_mode(LupusecAlarmMode.Disarmed) is True
     xt1.rest.panel_cond_post.assert_called_once_with(undocumented_legacy_api.MODE_DISARM)
-    with pytest.raises(LupusecNotSupportedException):
-        xt1.set_mode(LupusecAlarmMode.AlarmTriggered)
 
 
 def test_a_refused_mode_is_not_written_into_the_alarm() -> None:
@@ -196,7 +208,21 @@ def test_a_refused_mode_is_not_written_into_the_alarm() -> None:
     api.set_mode.return_value = True
     assert alarm.set_home(api) is True
     assert alarm.mode is LupusecAlarmMode.Home
-    api.set_mode.assert_called_with(LupusecAlarmMode.Home)
+    api.set_mode.assert_called_with(LupusecAlarmMode.Home, area=1)
+
+
+def test_area_names_come_from_the_panel() -> None:
+    """The panel puts the area number in front of each name for display.
+
+    Only that prefix is taken off, so a name that starts with a number of
+    its own keeps it.
+    """
+    api = make_api()
+    api.rest.area_list_get.return_value = {
+        "arearows": {"1": "1 Haus", "2": "2 Keller", "3": "2. Etage"}
+    }
+
+    assert api.get_area_names() == {1: "Haus", 2: "Keller", 3: "2. Etage"}
 
 
 def test_power_switches_are_numbered_per_form() -> None:
@@ -229,6 +255,55 @@ def test_the_device_list_is_read_once_per_moment() -> None:
     api.rest.device_list_get.assert_called_once()
 
 
+def test_events_are_parsed() -> None:
+    """The rows arrive with placeholders, tabs and timestamps as strings.
+
+    A system event carries no device, and its user does.
+    """
+    events = make_api().get_events()
+
+    assert events[-1] == {
+        "uid": 8858,
+        "time": datetime(2026, 9, 15, 22, 35, 15, tzinfo=timezone.utc),
+        "area": "1",
+        "zone": 2,
+        "device_id": "RF:00000001",
+        "device_type": 9,
+        "name": "Hallway",
+        "category": 1,
+        "code": 183,
+        "value": "1",
+        "user": None,
+    }
+    assert (events[1]["zone"], events[1]["device_id"], events[1]["device_type"]) == (
+        None,
+        None,
+        None,
+    )
+    assert events[1]["user"] == "{WEB_MSG_USER_ID}1(user)"
+
+
+def test_events_continue_where_the_caller_left_off(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The panel keeps a limited number of entries, so a uid can fall out."""
+    seen = {
+        after_uid: [e["uid"] for e in make_api().get_events(after_uid)]
+        for after_uid in (None, 8857, 8858)
+    }
+
+    assert seen == {None: [8856, 8857, 8858], 8857: [8858], 8858: []}
+
+    with caplog.at_level(logging.WARNING):
+        make_api().get_events(8855)
+    assert caplog.text == ""
+
+    with caplog.at_level(logging.WARNING):
+        make_api().get_events(8800)
+    assert "8800" in caplog.text
+
+
+
 def test_connecting_uses_the_configured_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """The user says which panel it is; nothing is asked of it to find out."""
     rest, legacy = MagicMock(), MagicMock()
@@ -255,6 +330,28 @@ def test_connecting_uses_the_configured_model(monkeypatch: pytest.MonkeyPatch) -
     assert [c[0] for c in legacy.method_calls] == ["sensor_list_get", "login_post"]
 
 
+def test_panel_info_is_what_welcome_get_reports() -> None:
+    """Asked on demand, not to tell which panel it is."""
+    api = make_api()
+    api.rest.welcome_get.return_value = {
+        "updates": {
+            "version": "HPGW-G1 0.0.3.7J HPGW-L2-XA35H ",
+            "rf_ver": "HPGW-L2-XA35H",
+            "zbs_ver": "4.1.2.6.2",
+            "gsm_ver": "",
+            "mac": "00:1D:94:00:00:01",
+        }
+    }
+
+    info = api.get_panel_info()
+
+    assert (info.firmware, info.version, info.zigbee, info.gsm) == (
+        "0.0.3.7J",
+        "HPGW-G1 0.0.3.7J HPGW-L2-XA35H",
+        "4.1.2.6.2",
+        "",
+    )
+
 
 def test_what_the_first_xt1_cannot_do_raises() -> None:
     """The calling application decides what to do about it, not the library."""
@@ -263,6 +360,9 @@ def test_what_the_first_xt1_cannot_do_raises() -> None:
     for name, call_it in {
         "switch": lambda: xt1.switch("ZS:01", True),
         "move_shutter": lambda: xt1.move_shutter("ZS:01", vendor_api.SHUTTER_UP),
+        "get_events": xt1.get_events,
+        "get_area_names": xt1.get_area_names,
+        "get_panel_info": xt1.get_panel_info,
     }.items():
         with pytest.raises(LupusecNotSupportedException):
             call_it()

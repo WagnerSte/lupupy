@@ -14,6 +14,7 @@ from lupupy.api.data_models import (
     LupusecAlarmMode,
     LupusecModel,
     LupusecModelType,
+    PanelInfo,
 )
 from lupupy.api.legacy import undocumented_legacy_api
 from lupupy.api.legacy.undocumented_legacy_api import UndocumentedLegacyApi
@@ -38,6 +39,10 @@ class LegacyLupusecApi(LupusecApi):
         super().__init__(rest, model)
         self.rest.sensor_list_get()
         self.rest.login_post()
+
+    def get_panel_info(self) -> PanelInfo:
+        """Not supported: the first XT1 has no welcomeGet."""
+        raise LupusecNotSupportedException("The first XT1 reports no panel info")
 
     def get_power_switches(self) -> list[dict]:
         """The power switches, which the XT1 lists apart, via pssStatusGet."""
@@ -87,8 +92,20 @@ class LegacyLupusecApi(LupusecApi):
         """The raw rows of the event log, via historyGet."""
         return self.rest.history_get()[CONST.HISTORY_HEADER]
 
-    def set_mode(self, mode: LupusecAlarmMode) -> bool:
-        """Arm or disarm the panel, via panelCondPost without an area."""
+    def get_events(self, after_uid: int | None = None) -> list[dict]:
+        """Not supported: the first XT1 has no event log of this kind."""
+        raise LupusecNotSupportedException(
+            "The first XT1 has no event log to read events from"
+        )
+
+    def get_area_names(self) -> dict[int, str]:
+        """Not supported: the first XT1 has a single area without a name."""
+        raise LupusecNotSupportedException("The first XT1 has no area names")
+
+    def set_mode(self, mode: LupusecAlarmMode, area: int = 1) -> bool:
+        """Arm or disarm the single area, via panelCondPost without an area."""
+        if area != 1:
+            raise LupusecNotSupportedException("The first XT1 has a single area")
         mode_value = self.get_alarm_mode_value(mode)
         if mode_value == -1:
             raise LupusecNotSupportedException(
@@ -111,4 +128,3 @@ class LegacyLupusecApi(LupusecApi):
     def move_shutter(self, device_id: str, direction: int) -> bool:
         """Not supported: the first XT1 has no shutter relays."""
         raise LupusecNotSupportedException("The first XT1 cannot move shutters")
-

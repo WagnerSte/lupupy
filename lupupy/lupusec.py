@@ -8,6 +8,7 @@ from lupupy.api.data_models import (
     LupusecAlarmMode,
     LupusecModel,
     LupusecModelType,
+    PanelInfo,
 )
 from lupupy.api import connect
 from lupupy.devices import LupusecDevice
@@ -100,13 +101,25 @@ class Lupusec:
         """The web API the configured panel speaks."""
         return self.api.generation
 
-    def set_mode(self, mode: LupusecAlarmMode) -> bool:
-        """Arm or disarm the panel."""
-        return self.api.set_mode(mode)
+    def get_panel_info(self) -> PanelInfo:
+        """Firmware, radio modules and MAC address, read from the panel."""
+        return self.api.get_panel_info()
+
+    def set_mode(self, mode: LupusecAlarmMode, area: int = 1) -> bool:
+        """Arm or disarm one area of the panel."""
+        return self.api.set_mode(mode, area)
 
     def get_history(self) -> list:
         """Get the event history of the panel."""
         return self.api.get_history()
+
+    def get_area_names(self) -> dict[int, str]:
+        """The name of each area, read fresh from the panel."""
+        return self.api.get_area_names()
+
+    def get_events(self, after_uid: int | None = None) -> list[dict]:
+        """Get the entries of the panel's event log, oldest first."""
+        return self.api.get_events(after_uid)
 
     def _newDevice(self, deviceJson: dict) -> None | LupusecDevice:
         """Create new device object for the given type."""

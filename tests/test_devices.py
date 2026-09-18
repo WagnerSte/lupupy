@@ -238,3 +238,45 @@ def test_a_device_survives_a_refresh() -> None:
 def test_the_alarm_panel_knows_what_it_is() -> None:
     """Its type was missing from the translation."""
     assert make_device(type=CONST.ALARM_TYPE).generic_type == "Alarmanlage"
+
+
+def test_what_the_panel_reports_about_itself() -> None:
+    """The panel condition carries power, radio, GSM and an open contact.
+
+    Its battery field holds a placeholder rather than a number, which the
+    battery property used to pass to int().
+    """
+    from lupupy.devices.alarm import LupusecAlarm
+
+    def alarm(**fields: str) -> LupusecAlarm:
+        state = {
+            "device_id": "0",
+            "type": CONST.ALARM_TYPE,
+            "mode": "Disarm",
+            "battery": "{WEB_MSG_NORMAL}",
+            "ac_activation_ok": "1",
+            "interference_ok": "1",
+            "sig_gsm_ok": "1",
+            "dc_ex": "1",
+        }
+        state.update(fields)
+        return LupusecAlarm(state)
+
+    quiet = alarm()
+    troubled = alarm(
+        ac_activation_ok="0", interference_ok="0", sig_gsm_ok="0", dc_ex="0"
+    )
+
+    assert (
+        quiet.battery,
+        quiet.radio_interference,
+        quiet.gsm_signal_lost,
+        quiet.contact_open,
+    ) == (False, False, False, False)
+    assert (
+        troubled.mains_power_lost,
+        troubled.battery,
+        troubled.radio_interference,
+        troubled.gsm_signal_lost,
+        troubled.contact_open,
+    ) == (True, True, True, True, True)
