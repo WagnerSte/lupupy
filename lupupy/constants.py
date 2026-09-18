@@ -1,7 +1,7 @@
 """Constants for the Lupusec alarm panel."""
 
 # Used in setup.py
-VERSION = "0.3.3-dev-1"
+VERSION = "1.0.0.dev1"
 PROJECT_PACKAGE_NAME = "lupupy"
 PROJECT_LICENSE = "MIT"
 PROJECT_URL = "http://www.github.com/majuss/lupupy"
