@@ -32,8 +32,3 @@ class LupusecSwitch(LupusecDevice):
         Assume switch is on.
         """
         return self.status not in (CONST.STATUS_OFF, CONST.STATUS_OFFLINE)
-
-    @property
-    def is_dimmable(self) -> bool:
-        """Device dimmable."""
-        return False

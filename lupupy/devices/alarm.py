@@ -52,11 +52,11 @@ class LupusecAlarm(LupusecSwitch):
         return response_object
 
     def switch_on(self, api: "LupusecApi") -> bool:
-        """Arm Abode to default mode."""
+        """Arm the area."""
         return self.set_mode(LupusecAlarmMode.Armed, api)
 
     def switch_off(self, api: "LupusecApi") -> bool:
-        """Arm Abode to home mode."""
+        """Disarm the area."""
         return self.set_standby(api)
 
     @property
@@ -103,8 +103,3 @@ class LupusecAlarm(LupusecSwitch):
     def battery(self) -> bool:
         """Return true if base station on battery backup."""
         return int(self._json_state.get("battery", "0")) == 1
-
-    @property
-    def is_cellular(self) -> bool:
-        """Return true if base station on cellular backup."""
-        return int(self._json_state.get("is_cellular", "0")) == 1

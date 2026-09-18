@@ -98,6 +98,7 @@ class Lupusec:
 
         if (
             type_tag in CONST.TYPE_OPENING
+            or type_tag in CONST.TYPE_MOTION
             or type_tag in CONST.TYPE_SENSOR
             or type_tag in CONST.TYPE_SIREN
             or type_tag in CONST.TYPE_KEYPAD
@@ -105,6 +106,8 @@ class Lupusec:
             return LupusecBinarySensor(deviceJson)
         elif type_tag in CONST.TYPE_SWITCH:
             return LupusecSwitch(deviceJson)
+        elif type_tag in CONST.TYPE_ACCESSORY:
+            return LupusecDevice(deviceJson)
         else:
             _LOGGER.info("Device is not known")
         return None
@@ -114,7 +117,7 @@ class Lupusec:
         responseObject = self.api.get_sensors()
 
         for deviceJson in responseObject:
-            device = self._devices.get(deviceJson["name"])
+            device = self._devices.get(deviceJson["device_id"])
             if device:
                 device.update(deviceJson)
             else:
@@ -131,12 +134,12 @@ class Lupusec:
 
         self._panel.update(panelJson)
 
-        alarmDevice = self._devices.get("0")
+        alarmDevice = self._devices.get(CONST.ALARM_DEVICE_ID)
         if alarmDevice:
             alarmDevice.update(panelJson)
         else:
             alarmDevice = LupusecAlarm(panelJson)
-            self._devices["0"] = alarmDevice
+            self._devices[CONST.ALARM_DEVICE_ID] = alarmDevice
 
     def _handle_power_switches(self) -> None:
         """Handle power switches based on the model type."""
@@ -145,7 +148,7 @@ class Lupusec:
             _LOGGER.debug("Get active the power switches in get_devices: %s", switches)
 
             for deviceJson in switches:
-                device = self._devices.get(deviceJson["name"])
+                device = self._devices.get(deviceJson["device_id"])
                 if device:
                     device.update(deviceJson)
                 else:
